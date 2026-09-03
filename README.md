@@ -36,7 +36,7 @@ To log in and test the application:
 1. **Clone the repository:**
 
    ```bash
-   git clone [https://github.com/YOUR_GITHUB_USERNAME/inventra-pos.git](https://github.com/YOUR_GITHUB_USERNAME/inventra-pos.git)
+   git clone [https://github.com/HarshD25/inventra-pos.git](https://github.com/HarshD25/inventra-pos.git)
    cd inventra-pos
    ```
 
