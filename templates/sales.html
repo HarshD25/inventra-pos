@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Inventra POS - Sales & Terminal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <style>
+      @media print {
+        body * {
+          visibility: hidden;
+        }
+        #printable-receipt,
+        #printable-receipt * {
+          visibility: visible;
+        }
+        #printable-receipt {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body class="bg-gray-100 font-sans text-gray-800 flex min-h-screen relative">
+    <!-- Toast Notification Container -->
+    <div
+      id="toast"
+      class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg text-white text-sm font-medium"
+    >
+      <i id="toast-icon" class="fa-solid"></i>
+      <span id="toast-message">Notification message</span>
+    </div>
+
+    <!-- Printable Receipt Modal -->
+    <div
+      id="receipt-modal"
+      class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4"
+    >
+      <div
+        class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4"
+      >
+        <div
+          id="printable-receipt"
+          class="space-y-3 font-mono text-xs border-b pb-4"
+        >
+          <div class="text-center border-b pb-3">
+            <i
+              class="fa-solid fa-boxes-stacked text-2xl text-slate-900 mb-1"
+            ></i>
+            <h2 class="text-base font-bold text-gray-900 tracking-wide">
+              INVENTRA RETAIL
+            </h2>
+            <p class="text-gray-500">Official Sales Receipt</p>
+            <p id="receipt-date" class="text-[10px] text-gray-400 mt-1"></p>
+          </div>
+          <div id="receipt-items" class="space-y-1.5 py-2"></div>
+          <div
+            class="border-t pt-2 flex justify-between font-bold text-sm text-gray-900"
+          >
+            <span>Total Paid:</span>
+            <span id="receipt-total">$0.00</span>
+          </div>
+        </div>
+        <div class="flex gap-2">
+          <button
+            onclick="window.print()"
+            class="flex-1 bg-slate-900 text-white py-2 rounded-lg text-xs font-semibold hover:bg-slate-800"
+          >
+            <i class="fa-solid fa-print"></i> Print Receipt
+          </button>
+          <button
+            onclick="closeReceiptModal()"
+            class="px-4 border border-gray-300 text-gray-600 rounded-lg text-xs font-semibold hover:bg-gray-50"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <aside class="w-56 bg-slate-900 text-slate-300 flex flex-col flex-shrink-0">
+      <div class="p-4 flex items-center gap-3 border-b border-slate-800">
+        <i class="fa-solid fa-boxes-stacked text-xl text-white"></i>
+        <span class="font-bold text-white tracking-wide">Inventra POS</span>
+      </div>
+      <nav class="flex-1 py-4 space-y-1">
+        <a
+          href="/dashboard.html"
+          class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition hover:bg-slate-800"
+        >
+          <i class="fa-solid fa-house w-4"></i> Dashboard
+        </a>
+        <a
+          href="/products.html"
+          class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition hover:bg-slate-800"
+        >
+          <i class="fa-solid fa-box-open w-4"></i> Products
+        </a>
+        <a
+          href="/sales.html"
+          class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium bg-slate-800 text-white"
+        >
+          <i class="fa-solid fa-calculator w-4"></i> POS Terminal
+        </a>
+      </nav>
+    </aside>
+
+    <div class="flex-1 flex flex-col min-w-0">
+      <header
+        class="bg-white border-b px-6 py-3 flex justify-between items-center"
+      >
+        <h2 class="text-xl font-bold text-slate-800">POS Terminal</h2>
+        <div class="flex items-center gap-4 text-sm text-gray-600">
+          <span>Welcome, <b class="text-slate-800">({{ user }})</b></span>
+          <button
+            onclick="logout()"
+            class="text-red-600 hover:text-red-800 text-xs font-semibold"
+          >
+            Logout
+          </button>
+        </div>
+      </header>
+
+      <main class="flex-1 p-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div
+            class="lg:col-span-2 bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-4"
+          >
+            <div
+              class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b pb-3"
+            >
+              <h3 class="font-bold text-gray-800 text-sm">Select Items</h3>
+              <div class="relative w-full sm:w-64">
+                <i
+                  class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"
+                ></i>
+                <input
+                  type="text"
+                  id="pos-search"
+                  oninput="renderPOS()"
+                  placeholder="Search item catalog..."
+                  class="w-full pl-8 pr-3 py-1.5 border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+            <div
+              id="pos-grid"
+              class="grid grid-cols-2 sm:grid-cols-3 gap-3"
+            ></div>
+          </div>
+
+          <div class="space-y-4">
+            <div
+              class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm"
+            >
+              <div class="flex justify-between items-center border-b pb-2 mb-3">
+                <h3 class="font-bold text-gray-800 text-sm">Current Order</h3>
+                <button
+                  onclick="clearCart()"
+                  class="text-xs text-red-500 hover:underline"
+                >
+                  Clear
+                </button>
+              </div>
+
+              <div
+                id="cart-items"
+                class="divide-y divide-gray-100 text-xs py-1 space-y-2 min-h-[160px]"
+              ></div>
+
+              <div
+                class="border-t pt-3 mt-4 flex justify-between items-center font-bold text-slate-800"
+              >
+                <span>Total Amount:</span>
+                <span id="cart-total" class="text-base text-blue-600"
+                  >$0.00</span
+                >
+              </div>
+
+              <button
+                onclick="submitCheckout()"
+                class="w-full mt-4 bg-emerald-600 text-white font-medium py-2.5 rounded-lg text-sm hover:bg-emerald-700 transition flex items-center justify-center gap-2 shadow-sm"
+              >
+                <i class="fa-regular fa-square-check"></i> Complete Sale
+              </button>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      let products = [];
+      let cart = [];
+
+      function showToast(message, type = "success") {
+        const toast = document.getElementById("toast");
+        const msg = document.getElementById("toast-message");
+        const icon = document.getElementById("toast-icon");
+
+        msg.innerText = message;
+        if (type === "success") {
+          toast.className =
+            "fixed bottom-5 right-5 z-50 transition-all duration-300 flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg text-white text-sm font-medium bg-emerald-600 translate-y-0 opacity-100";
+          icon.className = "fa-solid fa-circle-check";
+        } else {
+          toast.className =
+            "fixed bottom-5 right-5 z-50 transition-all duration-300 flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg text-white text-sm font-medium bg-red-600 translate-y-0 opacity-100";
+          icon.className = "fa-solid fa-circle-exclamation";
+        }
+
+        setTimeout(() => {
+          toast.classList.add("translate-y-20", "opacity-0");
+        }, 3000);
+      }
+
+      async function loadProducts() {
+        const res = await fetch("/api/products");
+        if (res.status === 401) return (window.location.href = "/login.html");
+        products = await res.json();
+        renderPOS();
+      }
+
+      function renderPOS() {
+        const query = document.getElementById("pos-search").value.toLowerCase();
+        const grid = document.getElementById("pos-grid");
+        grid.innerHTML = "";
+
+        const filtered = products.filter((p) =>
+          p.name.toLowerCase().includes(query),
+        );
+
+        if (!filtered.length) {
+          grid.innerHTML = `<p class="col-span-3 text-center text-xs text-gray-400 py-8">No products matching "${query}"</p>`;
+          return;
+        }
+
+        filtered.forEach((p) => {
+          const disabled = p.stock === 0;
+          grid.innerHTML += `
+          <button onclick="addToCart(${p.id})" ${disabled ? "disabled" : ""} class="p-3 border rounded-xl flex flex-col items-center gap-2 hover:border-blue-500 bg-white transition ${disabled ? "opacity-40 cursor-not-allowed bg-gray-50" : "hover:shadow-sm"}">
+            <div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center text-lg text-slate-700"><i class="fa-solid ${p.icon}"></i></div>
+            <span class="text-xs font-medium text-gray-800 line-clamp-1">${p.name}</span>
+            <span class="text-xs font-bold text-blue-600">$${p.price.toFixed(2)}</span>
+            <span class="text-[10px] text-gray-400">Stock: ${p.stock}</span>
+          </button>`;
+        });
+        renderCart();
+      }
+
+      function addToCart(id) {
+        const p = products.find((prod) => prod.id === id);
+        const item = cart.find((c) => c.id === id);
+
+        if (item) {
+          if (item.qty + 1 > p.stock)
+            return showToast("Cannot exceed available stock", "error");
+          item.qty++;
+        } else {
+          cart.push({ id: p.id, name: p.name, price: p.price, qty: 1 });
+        }
+        showToast(`Added ${p.name}`, "success");
+        renderCart();
+      }
+
+      function renderCart() {
+        const container = document.getElementById("cart-items");
+        container.innerHTML = "";
+
+        if (!cart.length) {
+          container.innerHTML = `<p class="text-gray-400 text-center py-6">Cart is empty.</p>`;
+          document.getElementById("cart-total").innerText = "$0.00";
+          return;
+        }
+
+        let total = 0;
+        cart.forEach((item) => {
+          const itemTotal = item.price * item.qty;
+          total += itemTotal;
+          container.innerHTML += `
+          <div class="flex justify-between items-center py-1">
+            <div>
+              <p class="font-medium text-gray-800">${item.name}</p>
+              <p class="text-[10px] text-gray-400">$${item.price.toFixed(2)} x ${item.qty}</p>
+            </div>
+            <span class="font-semibold text-gray-700">$${itemTotal.toFixed(2)}</span>
+          </div>`;
+        });
+        document.getElementById("cart-total").innerText =
+          `$${total.toFixed(2)}`;
+      }
+
+      function clearCart() {
+        cart = [];
+        renderCart();
+      }
+
+      async function submitCheckout() {
+        if (!cart.length) return showToast("Cart is empty!", "error");
+
+        const res = await fetch("/api/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cart }),
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          openReceiptModal(cart);
+          showToast(data.message, "success");
+          cart = [];
+          loadProducts();
+        } else {
+          showToast(data.error || "Checkout failed", "error");
+        }
+      }
+
+      function openReceiptModal(purchasedCart) {
+        const modal = document.getElementById("receipt-modal");
+        const itemsContainer = document.getElementById("receipt-items");
+        const dateContainer = document.getElementById("receipt-date");
+        const totalContainer = document.getElementById("receipt-total");
+
+        dateContainer.innerText = new Date().toLocaleString();
+        itemsContainer.innerHTML = "";
+        let total = 0;
+
+        purchasedCart.forEach((item) => {
+          const itemTotal = item.price * item.qty;
+          total += itemTotal;
+          itemsContainer.innerHTML += `
+          <div class="flex justify-between">
+            <span>${item.name} x${item.qty}</span>
+            <span>$${itemTotal.toFixed(2)}</span>
+          </div>`;
+        });
+
+        totalContainer.innerText = `$${total.toFixed(2)}`;
+        modal.classList.remove("hidden");
+      }
+
+      function closeReceiptModal() {
+        document.getElementById("receipt-modal").classList.add("hidden");
+      }
+
+      async function logout() {
+        await fetch("/api/logout", { method: "POST" });
+        window.location.href = "/login.html";
+      }
+
+      loadProducts();
+    </script>
+  </body>
+</html>

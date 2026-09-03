@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Inventra POS - Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+  </head>
+  <body class="bg-gray-100 font-sans text-gray-800 flex min-h-screen">
+    <aside class="w-56 bg-slate-900 text-slate-300 flex flex-col flex-shrink-0">
+      <div class="p-4 flex items-center gap-3 border-b border-slate-800">
+        <i class="fa-solid fa-boxes-stacked text-xl text-white"></i>
+        <span class="font-bold text-white tracking-wide">Inventra POS</span>
+      </div>
+      <nav class="flex-1 py-4 space-y-1">
+        <a
+          href="/dashboard.html"
+          class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium bg-slate-800 text-white"
+        >
+          <i class="fa-solid fa-house w-4"></i> Dashboard
+        </a>
+        <a
+          href="/products.html"
+          class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition hover:bg-slate-800"
+        >
+          <i class="fa-solid fa-box-open w-4"></i> Products
+        </a>
+        <a
+          href="/sales.html"
+          class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition hover:bg-slate-800"
+        >
+          <i class="fa-solid fa-calculator w-4"></i> POS Terminal
+        </a>
+      </nav>
+    </aside>
+
+    <div class="flex-1 flex flex-col min-w-0">
+      <header
+        class="bg-white border-b px-6 py-3 flex justify-between items-center"
+      >
+        <h2 class="text-xl font-bold text-slate-800">Dashboard</h2>
+        <div class="flex items-center gap-4 text-sm text-gray-600">
+          <span>Welcome, <b class="text-slate-800">({{ user }})</b></span>
+          <button
+            onclick="logout()"
+            class="text-red-600 hover:text-red-800 text-xs font-semibold"
+          >
+            Logout
+          </button>
+        </div>
+      </header>
+
+      <main class="flex-1 p-6 space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div
+            class="bg-emerald-600 text-white rounded-xl p-5 shadow-sm flex justify-between items-start"
+          >
+            <div>
+              <p class="text-emerald-100 text-sm">Total Revenue:</p>
+              <h3 id="stat-revenue" class="text-2xl font-bold mt-1">$0.00</h3>
+            </div>
+            <div class="p-2 bg-emerald-500/30 rounded-lg">
+              <i class="fa-solid fa-money-bill-wave text-lg"></i>
+            </div>
+          </div>
+          <div
+            class="bg-blue-600 text-white rounded-xl p-5 shadow-sm flex justify-between items-start"
+          >
+            <div>
+              <p class="text-blue-100 text-sm">Total Sales:</p>
+              <h3 id="stat-sales" class="text-2xl font-bold mt-1">0</h3>
+            </div>
+            <div class="p-2 bg-blue-500/30 rounded-lg">
+              <i class="fa-solid fa-chart-line text-lg"></i>
+            </div>
+          </div>
+          <div
+            class="bg-amber-600 text-white rounded-xl p-5 shadow-sm flex justify-between items-start"
+          >
+            <div>
+              <p class="text-amber-100 text-sm">Low Stock Items:</p>
+              <h3 id="stat-low-stock" class="text-2xl font-bold mt-1">0</h3>
+            </div>
+            <div class="p-2 bg-amber-500/30 rounded-lg">
+              <i class="fa-solid fa-triangle-exclamation text-lg"></i>
+            </div>
+          </div>
+        </div>
+
+        <!-- CSV Export Actions Card -->
+        <div
+          class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4"
+        >
+          <div>
+            <h4 class="text-sm font-bold text-gray-800">
+              Data Reports & Exports
+            </h4>
+            <p class="text-xs text-gray-500">
+              Download current transaction logs or stock status directly as CSV
+              files.
+            </p>
+          </div>
+          <div class="flex items-center gap-3">
+            <a
+              href="/api/export/sales"
+              download
+              class="px-3 py-2 bg-slate-800 text-white text-xs font-semibold rounded-lg hover:bg-slate-700 transition flex items-center gap-2"
+            >
+              <i class="fa-solid fa-file-csv"></i> Export Sales CSV
+            </a>
+            <a
+              href="/api/export/inventory"
+              download
+              class="px-3 py-2 border border-gray-300 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50 transition flex items-center gap-2"
+            >
+              <i class="fa-solid fa-file-excel"></i> Export Inventory CSV
+            </a>
+          </div>
+        </div>
+
+        <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+          <h4 class="text-sm font-semibold text-gray-700 mb-4">
+            Detailed Performance Trends
+          </h4>
+          <div class="w-full h-80 relative">
+            <canvas id="performanceChart"></canvas>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      let chartInstance = null;
+
+      async function loadDashboard() {
+        const res = await fetch("/api/stats");
+        if (res.status === 401) return (window.location.href = "/login.html");
+        const data = await res.json();
+
+        document.getElementById("stat-revenue").innerText =
+          `$${(data.revenue || 0).toFixed(2)}`;
+        document.getElementById("stat-sales").innerText = data.sales || 0;
+        document.getElementById("stat-low-stock").innerText =
+          data.low_stock || 0;
+
+        const ctx = document
+          .getElementById("performanceChart")
+          .getContext("2d");
+        const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+        gradient.addColorStop(0, "rgba(37, 99, 235, 0.35)");
+        gradient.addColorStop(1, "rgba(37, 99, 235, 0.01)");
+
+        if (chartInstance) chartInstance.destroy();
+
+        chartInstance = new Chart(ctx, {
+          type: "line",
+          data: {
+            labels: data.chart.labels,
+            datasets: [
+              {
+                label: "Sales Revenue ($)",
+                data: data.chart.data,
+                borderColor: "#2563eb",
+                borderWidth: 3,
+                backgroundColor: gradient,
+                fill: true,
+                tension: 0.35,
+                pointRadius: 6,
+                pointHoverRadius: 8,
+                pointBackgroundColor: "#2563eb",
+                pointBorderColor: "#ffffff",
+                pointBorderWidth: 2,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: { beginAtZero: true, grid: { color: "#f3f4f6" } },
+              x: { grid: { display: false } },
+            },
+          },
+        });
+      }
+
+      async function logout() {
+        await fetch("/api/logout", { method: "POST" });
+        window.location.href = "/login.html";
+      }
+
+      window.onload = loadDashboard;
+    </script>
+  </body>
+</html>
