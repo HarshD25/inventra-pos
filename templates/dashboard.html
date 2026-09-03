@@ -137,55 +137,62 @@
       let chartInstance = null;
 
       async function loadDashboard() {
-        const res = await fetch("/api/stats");
-        if (res.status === 401) return (window.location.href = "/login.html");
-        const data = await res.json();
+        try {
+          const res = await fetch("/api/stats");
+          if (res.status === 401) return (window.location.href = "/login.html");
+          const data = await res.json();
 
-        document.getElementById("stat-revenue").innerText =
-          `$${(data.revenue || 0).toFixed(2)}`;
-        document.getElementById("stat-sales").innerText = data.sales || 0;
-        document.getElementById("stat-low-stock").innerText =
-          data.low_stock || 0;
+          document.getElementById("stat-revenue").innerText =
+            `$${(data.revenue || 0).toFixed(2)}`;
+          document.getElementById("stat-sales").innerText = data.sales || 0;
+          document.getElementById("stat-low-stock").innerText =
+            data.low_stock || 0;
 
-        const ctx = document
-          .getElementById("performanceChart")
-          .getContext("2d");
-        const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-        gradient.addColorStop(0, "rgba(37, 99, 235, 0.35)");
-        gradient.addColorStop(1, "rgba(37, 99, 235, 0.01)");
+          const ctx = document
+            .getElementById("performanceChart")
+            .getContext("2d");
+          const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+          gradient.addColorStop(0, "rgba(37, 99, 235, 0.35)");
+          gradient.addColorStop(1, "rgba(37, 99, 235, 0.01)");
 
-        if (chartInstance) chartInstance.destroy();
+          if (chartInstance) chartInstance.destroy();
 
-        chartInstance = new Chart(ctx, {
-          type: "line",
-          data: {
-            labels: data.chart.labels,
-            datasets: [
-              {
-                label: "Sales Revenue ($)",
-                data: data.chart.data,
-                borderColor: "#2563eb",
-                borderWidth: 3,
-                backgroundColor: gradient,
-                fill: true,
-                tension: 0.35,
-                pointRadius: 6,
-                pointHoverRadius: 8,
-                pointBackgroundColor: "#2563eb",
-                pointBorderColor: "#ffffff",
-                pointBorderWidth: 2,
-              },
-            ],
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-              y: { beginAtZero: true, grid: { color: "#f3f4f6" } },
-              x: { grid: { display: false } },
+          const labels = (data.chart && data.chart.labels) || ["No Data"];
+          const chartData = (data.chart && data.chart.data) || [0];
+
+          chartInstance = new Chart(ctx, {
+            type: "line",
+            data: {
+              labels: labels,
+              datasets: [
+                {
+                  label: "Sales Revenue ($)",
+                  data: chartData,
+                  borderColor: "#2563eb",
+                  borderWidth: 3,
+                  backgroundColor: gradient,
+                  fill: true,
+                  tension: 0.35,
+                  pointRadius: 6,
+                  pointHoverRadius: 8,
+                  pointBackgroundColor: "#2563eb",
+                  pointBorderColor: "#ffffff",
+                  pointBorderWidth: 2,
+                },
+              ],
             },
-          },
-        });
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                y: { beginAtZero: true, grid: { color: "#f3f4f6" } },
+                x: { grid: { display: false } },
+              },
+            },
+          });
+        } catch (err) {
+          console.error("Dashboard failed to load:", err);
+        }
       }
 
       async function logout() {

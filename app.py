@@ -1,12 +1,15 @@
 import sqlite3
 import jwt
-import datetime
+import os
+import csv
+import io
 from functools import wraps
-from flask import Flask, request, jsonify, render_template
+from datetime import datetime, timedelta, timezone
+from flask import Flask, request, jsonify, render_template, send_from_directory, Response
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key-here'  # Change this to a random secure key
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'inventory-pos-web-application-2026')
 
 def get_db():
     conn = sqlite3.connect('database.db')
@@ -75,7 +78,6 @@ def login():
     username = data.get('username', '').strip()
     password = data.get('password', '').strip()
 
-    # Input Validation
     if not username or not password:
         return jsonify({'error': 'Username and password are required'}), 400
 
@@ -83,11 +85,10 @@ def login():
     user = conn.cursor().execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
     conn.close()
 
-    # Check hashed password safely
     if user and check_password_hash(user['password'], password):
         token = jwt.encode({
             'user': username,
-            'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=8)
+            'exp': datetime.now(timezone.utc) + timedelta(hours=8)
         }, app.config['SECRET_KEY'], algorithm="HS256")
 
         resp = jsonify({'message': 'Logged in successfully'})
@@ -123,7 +124,7 @@ def get_stats(current_user):
         totals = [row['total_amount'] for row in chart_rows]
     else:
         labels = ['Order #1', 'Order #2', 'Order #3', 'Order #4', 'Order #5']
-        totals = [1200, 3500, 2800, 5400, 4100]
+        totals = [0, 0, 0, 0, 0]
 
     conn.close()
     return jsonify({
@@ -144,19 +145,22 @@ def handle_products(current_user):
         name = str(data.get('name', '')).strip()
         price = data.get('price')
         stock = data.get('stock')
-        icon = data.get('icon', 'fa-box').strip()
+        icon = str(data.get('icon', 'fa-box')).strip() or 'fa-box'
 
-        # Input Validations
         if not name:
+            conn.close()
             return jsonify({'error': 'Product name cannot be empty'}), 400
         try:
             price = float(price)
             stock = int(stock)
             if price <= 0:
+                conn.close()
                 return jsonify({'error': 'Price must be greater than $0'}), 400
             if stock < 0:
+                conn.close()
                 return jsonify({'error': 'Stock cannot be negative'}), 400
         except (ValueError, TypeError):
+            conn.close()
             return jsonify({'error': 'Invalid format for price or stock'}), 400
 
         cursor.execute("INSERT INTO products (name, price, stock, icon) VALUES (?, ?, ?, ?)",
@@ -165,52 +169,47 @@ def handle_products(current_user):
         conn.close()
         return jsonify({'message': 'Product added successfully'}), 201
 
-    products = cursor.execute("SELECT * FROM products").fetchall()
-    conn.close()
-    return jsonify([dict(p) for p in products])
-
-@app.route('/api/products', methods=['GET'])
-@token_required
-def get_products(current_user):
-    conn = get_db()
-    cursor = conn.cursor()
     rows = cursor.execute("SELECT id, name, price, stock, icon FROM products ORDER BY id DESC").fetchall()
     conn.close()
-
+    
     products = [
         {
             'id': row['id'],
             'name': row['name'],
             'price': row['price'],
             'stock': row['stock'],
-            'icon': row['icon'] if row['icon'] else 'fa-box'  # Fallback if empty
+            'icon': row['icon'] if row['icon'] else 'fa-box'
         }
         for row in rows
     ]
     return jsonify(products)
 
-@app.route('/api/products', methods=['POST'])
-@token_required
-def create_product(current_user):
-    data = request.get_json()
-    name = data.get('name')
-    price = data.get('price')
-    stock = data.get('stock')
-    icon = data.get('icon', 'fa-box')  # Default to fa-box if omitted
+@app.route('/api/products/<product_id>', methods=['DELETE'])
+def delete_product(product_id):
+    conn = None
+    try:
+        conn = sqlite3.connect('database.db')
+        cursor = conn.cursor()
+        
+        cursor.execute("DELETE FROM products WHERE id = ?", (product_id,))
+        
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Product not found"}), 404
+            
+        conn.commit()
+        return jsonify({"message": "Product deleted successfully"}), 200
 
-    if not name or not price or not stock:
-        return jsonify({'error': 'All fields are required'}), 400
+    except sqlite3.Error as err:
+        if conn:
+            conn.rollback()
+        return jsonify({"error": f"Database error: {str(err)}"}), 500
 
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO products (name, price, stock, icon) VALUES (?, ?, ?, ?)",
-        (name, float(price), int(stock), icon)
-    )
-    conn.commit()
-    conn.close()
+    except Exception as err:
+        return jsonify({"error": f"Unexpected error: {str(err)}"}), 500
 
-    return jsonify({'message': 'Product added successfully'}), 201
+    finally:
+        if conn:
+            conn.close()
 
 @app.route('/api/checkout', methods=['POST'])
 @token_required
@@ -225,46 +224,42 @@ def checkout(current_user):
     cursor = conn.cursor()
     total_amount = 0
 
-    for item in cart:
-        prod_id = item.get('id')
-        qty = item.get('qty', 0)
+    try:
+        # Atomic Transaction
+        cursor.execute("BEGIN TRANSACTION;")
+        for item in cart:
+            prod_id = item.get('id')
+            qty = item.get('qty', 0)
 
-        if not isinstance(qty, int) or qty <= 0:
-            conn.close()
-            return jsonify({'error': f'Invalid quantity for item ID {prod_id}'}), 400
+            if not isinstance(qty, int) or qty <= 0:
+                conn.rollback()
+                conn.close()
+                return jsonify({'error': f'Invalid quantity for item ID {prod_id}'}), 400
 
-        product = cursor.execute("SELECT * FROM products WHERE id = ?", (prod_id,)).fetchone()
-        
-        if not product:
-            conn.close()
-            return jsonify({'error': f'Product ID {prod_id} not found'}), 404
-        
-        if product['stock'] < qty:
-            conn.close()
-            return jsonify({'error': f'Not enough stock for {product["name"]}'}), 400
+            product = cursor.execute("SELECT * FROM products WHERE id = ?", (prod_id,)).fetchone()
+            
+            if not product:
+                conn.rollback()
+                conn.close()
+                return jsonify({'error': f'Product ID {prod_id} not found'}), 404
+            
+            if product['stock'] < qty:
+                conn.rollback()
+                conn.close()
+                return jsonify({'error': f'Not enough stock for {product["name"]}'}), 400
 
-        total_amount += product['price'] * qty
-        cursor.execute("UPDATE products SET stock = stock - ? WHERE id = ?", (qty, prod_id))
+            total_amount += product['price'] * qty
+            cursor.execute("UPDATE products SET stock = stock - ? WHERE id = ?", (qty, prod_id))
 
-    cursor.execute("INSERT INTO sales (total_amount) VALUES (?)", (total_amount,))
-    conn.commit()
+        cursor.execute("INSERT INTO sales (total_amount) VALUES (?)", (total_amount,))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Transaction failed: ' + str(e)}), 500
+
     conn.close()
-
     return jsonify({'message': 'Checkout completed successfully!'})
-
-# Serve HTML Pages
-@app.route('/')
-@app.route('/<page>')
-def serve_page(page='dashboard.html'):
-    if not page.endswith('.html'):
-        page += '.html'
-    return render_template(page, user='admin')
-
-import csv
-import io
-from flask import Response
-
-from datetime import datetime
 
 @app.route('/api/export/<report_type>', methods=['GET'])
 @token_required
@@ -274,7 +269,6 @@ def export_csv(current_user, report_type):
     output = io.StringIO()
     writer = csv.writer(output)
     
-    # Generate current date string for file naming (YYYYMMDD)
     date_str = datetime.now().strftime('%Y%m%d')
 
     if report_type == 'sales':
@@ -301,11 +295,16 @@ def export_csv(current_user, report_type):
     return Response(
         output.getvalue(),
         mimetype="text/csv",
-        headers={"Content-Disposition": f"attachment;filename={filename}"}
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
 
-import os
-from flask import send_from_directory
+# Serve HTML Pages
+@app.route('/')
+@app.route('/<page>')
+def serve_page(page='dashboard.html'):
+    if not page.endswith('.html'):
+        page += '.html'
+    return render_template(page, user='admin')
 
 @app.route('/favicon.ico')
 def favicon():

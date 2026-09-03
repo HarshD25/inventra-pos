@@ -2,6 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Inventra POS - Sales & Terminal</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link
@@ -116,7 +117,9 @@
       >
         <h2 class="text-xl font-bold text-slate-800">POS Terminal</h2>
         <div class="flex items-center gap-4 text-sm text-gray-600">
-          <span>Welcome, <b class="text-slate-800">({{ user }})</b></span>
+          <span
+            >Welcome, <b id="user-display" class="text-slate-800">User</b></span
+          >
           <button
             onclick="logout()"
             class="text-red-600 hover:text-red-800 text-xs font-semibold"
@@ -203,6 +206,8 @@
         const msg = document.getElementById("toast-message");
         const icon = document.getElementById("toast-icon");
 
+        if (!toast || !msg || !icon) return;
+
         msg.innerText = message;
         if (type === "success") {
           toast.className =
@@ -220,19 +225,129 @@
       }
 
       async function loadProducts() {
-        const res = await fetch("/api/products");
-        if (res.status === 401) return (window.location.href = "/login.html");
-        products = await res.json();
-        renderPOS();
+        try {
+          const res = await fetch("/api/products");
+          if (res.status === 401) return (window.location.href = "/login.html");
+          if (!res.ok) throw new Error("Failed to fetch products");
+
+          const data = await res.json();
+          const rawProducts = Array.isArray(data) ? data : data.products || [];
+
+          // Group and merge items with identical Name and Price
+          const mergedMap = new Map();
+
+          rawProducts.forEach((p) => {
+            // Create a unique key using normalized name + price
+            const key = `${(p.name || "").toLowerCase().trim()}_${Number(p.price || 0).toFixed(2)}`;
+
+            if (mergedMap.has(key)) {
+              const existing = mergedMap.get(key);
+              existing.stock += Number(p.stock || 0); // Combine stock
+            } else {
+              // Keep first ID found for reference
+              mergedMap.set(key, {
+                ...p,
+                price: Number(p.price || 0),
+                stock: Number(p.stock || 0),
+              });
+            }
+          });
+
+          products = Array.from(mergedMap.values());
+          renderPOS();
+        } catch (err) {
+          console.error(err);
+          showToast("Failed to load catalog", "error");
+        }
       }
 
+      // 1. Icon Auto-Detection Helper
+      function getAutoIcon(name, customIcon = "") {
+        if (customIcon && customIcon !== "fa-box" && customIcon !== "box") {
+          return customIcon;
+        }
+
+        const cleanName = (name || "").toLowerCase().trim();
+
+        const mappings = [
+          {
+            keywords: ["laptop", "macbook", "notebook", "pc"],
+            icon: "fa-laptop",
+          },
+          {
+            keywords: [
+              "phone",
+              "iphone",
+              "mobile",
+              "samsung",
+              "pixel",
+              "smartphone",
+            ],
+            icon: "fa-mobile-screen",
+          },
+          {
+            keywords: ["tv", "television", "display", "monitor", "screen"],
+            icon: "fa-tv",
+          },
+          { keywords: ["mouse", "trackpad"], icon: "fa-computer-mouse" },
+          {
+            keywords: ["usb", "cable", "charger", "plug", "adapter"],
+            icon: "fa-plug",
+          },
+          {
+            keywords: ["headphone", "headset", "earphone", "airpods", "audio"],
+            icon: "fa-headphones",
+          },
+          { keywords: ["keyboard", "keypad"], icon: "fa-keyboard" },
+          {
+            keywords: ["watch", "smartwatch", "apple watch"],
+            icon: "fa-stopwatch",
+          },
+          { keywords: ["camera", "cam", "webcam"], icon: "fa-camera" },
+          { keywords: ["print", "printer", "scanner"], icon: "fa-print" },
+          {
+            keywords: ["speaker", "soundbar", "subwoofer"],
+            icon: "fa-volume-high",
+          },
+          {
+            keywords: ["game", "ps5", "xbox", "controller", "nintendo"],
+            icon: "fa-gamepad",
+          },
+          {
+            keywords: ["shirt", "tshirt", "apparel", "clothing"],
+            icon: "fa-shirt",
+          },
+          { keywords: ["book", "notebook", "journal"], icon: "fa-book" },
+          { keywords: ["coffee", "drink", "cup", "mug"], icon: "fa-mug-hot" },
+        ];
+
+        for (const rule of mappings) {
+          if (rule.keywords.some((key) => cleanName.includes(key))) {
+            return rule.icon;
+          }
+        }
+
+        return "fa-box";
+      }
+
+      // 2. Icon Formatter Helper
+      function normalizeIcon(icon) {
+        let raw = (icon || "fa-box").trim();
+        if (raw === "fa-mouse") raw = "fa-computer-mouse";
+        raw = raw.replace(/^fa-solid\s+/, "").replace(/^fa-/, "");
+        return `fa-solid fa-${raw}`;
+      }
+
+      // 3. Render POS Grid
       function renderPOS() {
-        const query = document.getElementById("pos-search").value.toLowerCase();
+        const searchInput = document.getElementById("pos-search");
+        const query = searchInput ? searchInput.value.toLowerCase().trim() : "";
         const grid = document.getElementById("pos-grid");
+        if (!grid) return;
         grid.innerHTML = "";
 
         const filtered = products.filter((p) =>
-          p.name.toLowerCase().includes(query),
+          p.name ? p.name.toLowerCase().includes(query) : false,
         );
 
         if (!filtered.length) {
@@ -242,19 +357,30 @@
 
         filtered.forEach((p) => {
           const disabled = p.stock === 0;
+
+          const rawIcon = getAutoIcon(p.name, p.icon);
+          const finalIconClass = normalizeIcon(rawIcon);
+          const priceVal =
+            typeof p.price === "number"
+              ? p.price.toFixed(2)
+              : parseFloat(p.price || 0).toFixed(2);
+
           grid.innerHTML += `
           <button onclick="addToCart(${p.id})" ${disabled ? "disabled" : ""} class="p-3 border rounded-xl flex flex-col items-center gap-2 hover:border-blue-500 bg-white transition ${disabled ? "opacity-40 cursor-not-allowed bg-gray-50" : "hover:shadow-sm"}">
-            <div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center text-lg text-slate-700"><i class="fa-solid ${p.icon}"></i></div>
-            <span class="text-xs font-medium text-gray-800 line-clamp-1">${p.name}</span>
-            <span class="text-xs font-bold text-blue-600">$${p.price.toFixed(2)}</span>
+            <div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center text-lg text-slate-700">
+              <i class="${finalIconClass}"></i>
+            </div>
+            <span class="text-xs font-medium text-gray-800 line-clamp-1 capitalize">${p.name}</span>
+            <span class="text-xs font-bold text-blue-600">$${priceVal}</span>
             <span class="text-[10px] text-gray-400">Stock: ${p.stock}</span>
           </button>`;
         });
-        renderCart();
       }
 
       function addToCart(id) {
         const p = products.find((prod) => prod.id === id);
+        if (!p) return;
+
         const item = cart.find((c) => c.id === id);
 
         if (item) {
@@ -262,19 +388,37 @@
             return showToast("Cannot exceed available stock", "error");
           item.qty++;
         } else {
-          cart.push({ id: p.id, name: p.name, price: p.price, qty: 1 });
+          cart.push({ id: p.id, name: p.name, price: Number(p.price), qty: 1 });
         }
         showToast(`Added ${p.name}`, "success");
         renderCart();
       }
 
+      function updateQuantity(id, change) {
+        const item = cart.find((c) => c.id === id);
+        const p = products.find((prod) => prod.id === id);
+        if (!item) return;
+
+        if (change > 0 && p && item.qty + change > p.stock) {
+          return showToast("Cannot exceed available stock", "error");
+        }
+
+        item.qty += change;
+        if (item.qty <= 0) {
+          cart = cart.filter((c) => c.id !== id);
+        }
+        renderCart();
+      }
+
       function renderCart() {
         const container = document.getElementById("cart-items");
+        if (!container) return;
         container.innerHTML = "";
 
         if (!cart.length) {
           container.innerHTML = `<p class="text-gray-400 text-center py-6">Cart is empty.</p>`;
-          document.getElementById("cart-total").innerText = "$0.00";
+          const totalDisplay = document.getElementById("cart-total");
+          if (totalDisplay) totalDisplay.innerText = "$0.00";
           return;
         }
 
@@ -283,16 +427,24 @@
           const itemTotal = item.price * item.qty;
           total += itemTotal;
           container.innerHTML += `
-          <div class="flex justify-between items-center py-1">
+          <div class="flex justify-between items-center py-2">
             <div>
-              <p class="font-medium text-gray-800">${item.name}</p>
-              <p class="text-[10px] text-gray-400">$${item.price.toFixed(2)} x ${item.qty}</p>
+              <p class="font-medium text-gray-800 capitalize">${item.name}</p>
+              <p class="text-[10px] text-gray-400">$${item.price.toFixed(2)}</p>
             </div>
-            <span class="font-semibold text-gray-700">$${itemTotal.toFixed(2)}</span>
+            <div class="flex items-center gap-3">
+              <div class="flex items-center gap-1.5 border rounded px-1.5 py-0.5 bg-gray-50">
+                <button onclick="updateQuantity(${item.id}, -1)" class="text-gray-500 hover:text-red-600 px-1 font-bold">-</button>
+                <span class="font-medium text-gray-700 w-4 text-center">${item.qty}</span>
+                <button onclick="updateQuantity(${item.id}, 1)" class="text-gray-500 hover:text-blue-600 px-1 font-bold">+</button>
+              </div>
+              <span class="font-semibold text-gray-700 w-12 text-right">$${itemTotal.toFixed(2)}</span>
+            </div>
           </div>`;
         });
-        document.getElementById("cart-total").innerText =
-          `$${total.toFixed(2)}`;
+
+        const totalDisplay = document.getElementById("cart-total");
+        if (totalDisplay) totalDisplay.innerText = `$${total.toFixed(2)}`;
       }
 
       function clearCart() {
@@ -303,20 +455,25 @@
       async function submitCheckout() {
         if (!cart.length) return showToast("Cart is empty!", "error");
 
-        const res = await fetch("/api/checkout", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ cart }),
-        });
+        try {
+          const res = await fetch("/api/checkout", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cart }),
+          });
 
-        const data = await res.json();
-        if (res.ok) {
-          openReceiptModal(cart);
-          showToast(data.message, "success");
-          cart = [];
-          loadProducts();
-        } else {
-          showToast(data.error || "Checkout failed", "error");
+          const data = await res.json();
+          if (res.ok) {
+            openReceiptModal(cart);
+            showToast(data.message || "Checkout successful!", "success");
+            cart = [];
+            renderCart();
+            loadProducts();
+          } else {
+            showToast(data.error || "Checkout failed", "error");
+          }
+        } catch (err) {
+          showToast("Network error during checkout", "error");
         }
       }
 
@@ -326,6 +483,9 @@
         const dateContainer = document.getElementById("receipt-date");
         const totalContainer = document.getElementById("receipt-total");
 
+        if (!modal || !itemsContainer || !dateContainer || !totalContainer)
+          return;
+
         dateContainer.innerText = new Date().toLocaleString();
         itemsContainer.innerHTML = "";
         let total = 0;
@@ -334,8 +494,8 @@
           const itemTotal = item.price * item.qty;
           total += itemTotal;
           itemsContainer.innerHTML += `
-          <div class="flex justify-between">
-            <span>${item.name} x${item.qty}</span>
+          <div class="flex justify-between text-sm py-1">
+            <span class="capitalize">${item.name} x${item.qty}</span>
             <span>$${itemTotal.toFixed(2)}</span>
           </div>`;
         });
@@ -345,7 +505,8 @@
       }
 
       function closeReceiptModal() {
-        document.getElementById("receipt-modal").classList.add("hidden");
+        const modal = document.getElementById("receipt-modal");
+        if (modal) modal.classList.add("hidden");
       }
 
       async function logout() {
@@ -353,7 +514,10 @@
         window.location.href = "/login.html";
       }
 
-      loadProducts();
+      document.addEventListener("DOMContentLoaded", () => {
+        loadProducts();
+        renderCart();
+      });
     </script>
   </body>
 </html>
