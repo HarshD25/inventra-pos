@@ -10,7 +10,9 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
     />
   </head>
-  <body class="bg-gray-100 font-sans text-gray-800 flex min-h-screen relative">
+  <body
+    class="bg-gray-100 font-sans text-gray-800 flex flex-col md:flex-row min-h-screen relative"
+  >
     <!-- Toast Notification Container -->
     <div
       id="toast"
@@ -20,8 +22,29 @@
       <span id="toast-message">Notification message</span>
     </div>
 
-    <aside class="w-56 bg-slate-900 text-slate-300 flex flex-col flex-shrink-0">
-      <div class="p-4 flex items-center gap-3 border-b border-slate-800">
+    <!-- Mobile Navigation Header -->
+    <div
+      class="md:hidden bg-slate-900 text-white p-4 flex justify-between items-center z-40"
+    >
+      <div class="flex items-center gap-3">
+        <i class="fa-solid fa-boxes-stacked text-xl"></i>
+        <span class="font-bold tracking-wide">Inventra POS</span>
+      </div>
+      <button
+        onclick="toggleMobileMenu()"
+        class="text-gray-300 hover:text-white focus:outline-none"
+      >
+        <i class="fa-solid fa-bars text-xl"></i>
+      </button>
+    </div>
+
+    <aside
+      id="sidebar"
+      class="hidden md:flex w-full md:w-56 bg-slate-900 text-slate-300 flex-col flex-shrink-0"
+    >
+      <div
+        class="p-4 hidden md:flex items-center gap-3 border-b border-slate-800"
+      >
         <i class="fa-solid fa-boxes-stacked text-xl text-white"></i>
         <span class="font-bold text-white tracking-wide">Inventra POS</span>
       </div>
@@ -49,10 +72,14 @@
 
     <div class="flex-1 flex flex-col min-w-0">
       <header
-        class="bg-white border-b px-6 py-3 flex justify-between items-center"
+        class="bg-white border-b px-4 sm:px-6 py-3 flex justify-between items-center"
       >
-        <h2 class="text-xl font-bold text-slate-800">Product Inventory</h2>
-        <div class="flex items-center gap-4 text-sm text-gray-600">
+        <h2 class="text-lg sm:text-xl font-bold text-slate-800">
+          Product Inventory
+        </h2>
+        <div
+          class="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm text-gray-600"
+        >
           <span
             >Welcome, <b id="user-display" class="text-slate-800">User</b></span
           >
@@ -65,7 +92,7 @@
         </div>
       </header>
 
-      <main class="flex-1 p-6 space-y-6">
+      <main class="flex-1 p-4 sm:p-6 space-y-6">
         <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
           <h3 class="font-bold text-gray-800 text-sm mb-3">
             Add New Inventory Item
@@ -73,7 +100,7 @@
           <form
             id="add-product-form"
             onsubmit="createProduct(event)"
-            class="grid grid-cols-1 md:grid-cols-5 gap-3"
+            class="flex flex-col sm:grid sm:grid-cols-2 md:grid-cols-5 gap-3"
           >
             <input
               id="prod-name"
@@ -114,7 +141,7 @@
             </select>
             <button
               type="submit"
-              class="bg-emerald-600 text-white rounded text-sm font-medium py-1.5 hover:bg-emerald-700 transition"
+              class="bg-emerald-600 text-white rounded text-sm font-medium py-1.5 hover:bg-emerald-700 transition sm:col-span-2 md:col-span-1"
             >
               Add Product
             </button>
@@ -165,7 +192,7 @@
           <div
             class="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm p-4 overflow-x-auto"
           >
-            <table class="w-full text-left text-sm">
+            <table class="w-full min-w-[600px] text-left text-sm">
               <thead>
                 <tr class="border-b text-gray-500 font-medium">
                   <th class="pb-3 pl-2">Icon</th>
@@ -227,6 +254,11 @@
 
     <script>
       let products = [];
+
+      function toggleMobileMenu() {
+        const sidebar = document.getElementById("sidebar");
+        sidebar.classList.toggle("hidden");
+      }
 
       function showToast(message, type = "success") {
         const toast = document.getElementById("toast");

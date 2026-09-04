@@ -2,6 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Inventra POS - Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link
@@ -10,9 +11,30 @@
     />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
   </head>
-  <body class="bg-gray-100 font-sans text-gray-800 flex min-h-screen">
-    <aside class="w-56 bg-slate-900 text-slate-300 flex flex-col flex-shrink-0">
-      <div class="p-4 flex items-center gap-3 border-b border-slate-800">
+  <body
+    class="bg-gray-100 font-sans text-gray-800 flex flex-col md:flex-row min-h-screen"
+  >
+    <div
+      class="md:hidden bg-slate-900 text-white p-4 flex justify-between items-center"
+    >
+      <div class="flex items-center gap-3">
+        <i class="fa-solid fa-boxes-stacked text-xl"></i>
+        <span class="font-bold tracking-wide">Inventra POS</span>
+      </div>
+      <button
+        onclick="toggleMobileMenu()"
+        class="text-gray-300 hover:text-white focus:outline-none"
+      >
+        <i class="fa-solid fa-bars text-xl"></i>
+      </button>
+    </div>
+    <aside
+      id="sidebar"
+      class="hidden md:flex w-full md:w-56 bg-slate-900 text-slate-300 flex-col flex-shrink-0"
+    >
+      <div
+        class="p-4 hidden md:flex items-center gap-3 border-b border-slate-800"
+      >
         <i class="fa-solid fa-boxes-stacked text-xl text-white"></i>
         <span class="font-bold text-white tracking-wide">Inventra POS</span>
       </div>
@@ -55,45 +77,56 @@
       </header>
 
       <main class="flex-1 p-6 space-y-6">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div
-            class="bg-emerald-600 text-white rounded-xl p-5 shadow-sm flex justify-between items-start"
+            class="bg-emerald-600 text-white rounded-xl p-4 sm:p-5 shadow-sm flex justify-between items-start"
           >
             <div>
-              <p class="text-emerald-100 text-sm">Total Revenue:</p>
-              <h3 id="stat-revenue" class="text-2xl font-bold mt-1">$0.00</h3>
+              <p class="text-emerald-100 text-xs sm:text-sm">Total Revenue:</p>
+              <h3 id="stat-revenue" class="text-xl sm:text-2xl font-bold mt-1">
+                $0.00
+              </h3>
             </div>
             <div class="p-2 bg-emerald-500/30 rounded-lg">
-              <i class="fa-solid fa-money-bill-wave text-lg"></i>
+              <i class="fa-solid fa-money-bill-wave text-base sm:text-lg"></i>
             </div>
           </div>
           <div
-            class="bg-blue-600 text-white rounded-xl p-5 shadow-sm flex justify-between items-start"
+            class="bg-blue-600 text-white rounded-xl p-4 sm:p-5 shadow-sm flex justify-between items-start"
           >
             <div>
-              <p class="text-blue-100 text-sm">Total Sales:</p>
-              <h3 id="stat-sales" class="text-2xl font-bold mt-1">0</h3>
+              <p class="text-blue-100 text-xs sm:text-sm">Total Sales:</p>
+              <h3 id="stat-sales" class="text-xl sm:text-2xl font-bold mt-1">
+                0
+              </h3>
             </div>
             <div class="p-2 bg-blue-500/30 rounded-lg">
-              <i class="fa-solid fa-chart-line text-lg"></i>
+              <i class="fa-solid fa-chart-line text-base sm:text-lg"></i>
             </div>
           </div>
           <div
-            class="bg-amber-600 text-white rounded-xl p-5 shadow-sm flex justify-between items-start"
+            class="bg-amber-600 text-white rounded-xl p-4 sm:p-5 shadow-sm flex justify-between items-start"
           >
             <div>
-              <p class="text-amber-100 text-sm">Low Stock Items:</p>
-              <h3 id="stat-low-stock" class="text-2xl font-bold mt-1">0</h3>
+              <p class="text-amber-100 text-xs sm:text-sm">Low Stock Items:</p>
+              <h3
+                id="stat-low-stock"
+                class="text-xl sm:text-2xl font-bold mt-1"
+              >
+                0
+              </h3>
             </div>
             <div class="p-2 bg-amber-500/30 rounded-lg">
-              <i class="fa-solid fa-triangle-exclamation text-lg"></i>
+              <i
+                class="fa-solid fa-triangle-exclamation text-base sm:text-lg"
+              ></i>
             </div>
           </div>
         </div>
 
         <!-- CSV Export Actions Card -->
         <div
-          class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4"
+          class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
         >
           <div>
             <h4 class="text-sm font-bold text-gray-800">
@@ -104,29 +137,33 @@
               files.
             </p>
           </div>
-          <div class="flex items-center gap-3">
+          <div
+            class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto"
+          >
             <a
               href="/api/export/sales"
               download
-              class="px-3 py-2 bg-slate-800 text-white text-xs font-semibold rounded-lg hover:bg-slate-700 transition flex items-center gap-2"
+              class="px-3 py-2 bg-slate-800 text-white text-xs font-semibold rounded-lg hover:bg-slate-700 transition flex items-center justify-center gap-2 w-full sm:w-auto"
             >
               <i class="fa-solid fa-file-csv"></i> Export Sales CSV
             </a>
             <a
               href="/api/export/inventory"
               download
-              class="px-3 py-2 border border-gray-300 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50 transition flex items-center gap-2"
+              class="px-3 py-2 border border-gray-300 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50 transition flex items-center justify-center gap-2 w-full sm:w-auto"
             >
               <i class="fa-solid fa-file-excel"></i> Export Inventory CSV
             </a>
           </div>
         </div>
 
-        <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+        <div
+          class="bg-white p-4 sm:p-5 rounded-xl border border-gray-200 shadow-sm"
+        >
           <h4 class="text-sm font-semibold text-gray-700 mb-4">
             Detailed Performance Trends
           </h4>
-          <div class="w-full h-80 relative">
+          <div class="w-full h-64 sm:h-80 relative">
             <canvas id="performanceChart"></canvas>
           </div>
         </div>
@@ -135,6 +172,10 @@
 
     <script>
       let chartInstance = null;
+      function toggleMobileMenu() {
+        const sidebar = document.getElementById("sidebar");
+        sidebar.classList.toggle("hidden");
+      }
 
       async function loadDashboard() {
         try {
