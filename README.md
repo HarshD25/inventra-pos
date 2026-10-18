@@ -6,8 +6,8 @@ A simple inventory and point-of-sale web app made with Flask and SQLite. A small
 
 Login: `admin` / `admin123` (full access) or `cashier` / `cashier123` (limited)
 
-![Dashboard](screenshots/dashboard.png)
-![POS](screenshots/pos.png)
+![Dashboard](templates/screenshots/dashboard.png)
+![POS](templates/screenshots/pos.png)
 
 ## Features
 
