@@ -109,6 +109,7 @@
   /*-- cart --*/
   const touch = () => { idemKey = null; };
     const p = products.find((x) => x.id === id);
+    function addToCart(id) {
     if (!p) return;
     const line = cart.find((c) => c.id === id);
     if ((line ? line.qty : 0) + 1 > p.stock) return toast(`Only ${p.stock} of ${p.name} in stock`, "error");
