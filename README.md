@@ -1,57 +1,60 @@
-# Inventra POS — Retail & Inventory Management System
+# Inventra POS
 
-A full-stack, responsive Point of Sale (POS) and Inventory Management web application built with Python (Flask), SQLite, JavaScript, and Tailwind CSS.
+A simple inventory and point-of-sale web app made with Flask and SQLite. A small shop can sell items, track stock, refund orders and see sales on a dashboard.
 
----
+**Live demo:** https://inventra-pos-addp.onrender.com
 
-## 🚀 Key Features
+Login: `admin` / `admin123` (full access) or `cashier` / `cashier123` (limited)
 
-- **Real-Time POS Terminal:** Searchable product catalog, dynamic cart management, stock limit checks, and printable receipts.
-- **Inventory Management:** Full CRUD capabilities to add, filter, auto-merge, search, and delete products with custom icon support.
-- **Inventory Dashboard:** Overview of low-stock alerts, product categories, pricing, and visual product icons.
-- **CSV Export Reporting:** Downloadable sales logs and inventory reports with dynamic timestamp file naming.
-- **Secure Authentication:** User login system backed by JWTs stored securely in `HttpOnly` cookies.
+![Dashboard](screenshots/dashboard.png)
+![POS](screenshots/pos.png)
 
----
+## Features
 
-## 🛠️ Tech Stack
+- **POS:** search or scan a SKU, discount and tax, cash/card/UPI, change calculation, printable receipt
+- **Products:** SKU, category, cost and selling price, low-stock alerts, archive instead of delete
+- **Stock history:** every stock change is saved with a reason
+- **Refunds:** full or partial, with an option to put items back in stock
+- **Dashboard:** revenue, orders, profit, top products, low stock, CSV export
+- **Users:** admin and cashier roles, user management, store settings, audit log
 
-- **Backend:** Python, Flask, SQLite
-- **Frontend:** HTML5, Tailwind CSS, JavaScript (ES6+), FontAwesome
-- **Authentication:** PyJWT (JSON Web Tokens)
+## What I focused on
 
----
+- Money is stored as whole numbers (paise/cents), so there are no rounding errors.
+- The server calculates all prices and totals, so the browser can't change them.
+- Stock never goes below zero. A test sends 12 purchases at once for 5 items, and only 5 go through.
+- An old database is upgraded automatically without losing data.
+- Passwords are hashed, accounts lock after 5 wrong logins, and every request checks the user's role.
 
-## 🔑 Demo Credentials
+## Tech
 
-To log in and test the application:
+Python, Flask, SQLite, JavaScript, Tailwind CSS, Chart.js, pytest, Docker, GitHub Actions
 
-- **Username:** `admin`
-- **Password:** `admin123`
+## Run it
 
----
+```bash
+python -m venv venv
+venv\Scripts\activate        # Mac/Linux: source venv/bin/activate
+pip install -r requirements-dev.txt
+python app.py
+```
 
-## 📦 Local Setup Instructions
+Open http://localhost:5000. The first run adds sample products and a month of sales.
 
-1. **Clone the repository:**
+For an empty store, set `DEMO_MODE=0` and `ADMIN_PASSWORD` first (see `.env.example`).
 
-   ```bash
-   git clone [https://github.com/HarshD25/inventra-pos.git](https://github.com/HarshD25/inventra-pos.git)
-   cd inventra-pos
-   ```
+Run the 33 tests with `python -m pytest`.
 
-2. **Install dependencies:**
+## Files
 
-   ```bash
-   pip install -r requirements.txt
-   ```
+- `app.py` starts the app
+- `api.py` API routes
+- `services.py` checkout, refunds, stock
+- `auth.py` login and roles
+- `db.py` database setup and sample data
+- `templates/` pages
+- `tests/` tests
 
-3. **Run the Flask application:**
+## Limitations
 
-   ```bash
-   python app.py
-   ```
-
-4. **Access the web app:**
-
-   Open your browser and navigate to http://127.0.0.1:5000/login.html
+SQLite suits one shop or a demo. There is one tax rate for the whole store.

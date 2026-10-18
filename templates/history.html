@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Inventra POS - Sales History{% endblock %}
+{% block heading %}Sales History{% endblock %}
+
+{% block content %}
+<div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
+  <div class="flex flex-wrap items-end gap-2 text-xs">
+    <input id="f-q" placeholder="Receipt, customer or phone..." class="flex-1 min-w-[180px] border rounded-lg px-3 py-2" />
+    <select id="f-status" class="border rounded-lg px-2 py-2"><option value="">All statuses</option><option value="completed">Completed</option><option value="partially_refunded">Partially refunded</option><option value="refunded">Refunded</option></select>
+    <select id="f-payment" class="border rounded-lg px-2 py-2"><option value="">All payments</option><option value="cash">Cash</option><option value="card">Card</option><option value="upi">UPI</option></select>
+    <label class="flex flex-col gap-0.5">From<input id="f-from" type="date" class="border rounded-lg px-2 py-1.5" /></label>
+    <label class="flex flex-col gap-0.5">To<input id="f-to" type="date" class="border rounded-lg px-2 py-1.5" /></label>
+  </div>
+  {% if user.role != 'admin' %}<p class="text-[11px] text-gray-400">Showing your own sales only.</p>{% endif %}
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm text-left">
+      <thead class="text-xs text-gray-500 uppercase border-b"><tr>
+        <th class="pb-3 pl-2">Receipt</th><th class="pb-3">Date</th><th class="pb-3">Cashier</th><th class="pb-3">Items</th><th class="pb-3">Payment</th><th class="pb-3">Total</th><th class="pb-3">Status</th></tr></thead>
+      <tbody id="tbody" class="divide-y divide-gray-100"></tbody>
+    </table>
+  </div>
+  <div id="pager" class="flex justify-between items-center pt-2"></div>
+</div>
+
+<div id="detail-modal" data-modal class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 hidden flex items-center justify-center p-4">
+  <div class="bg-white rounded-xl max-w-xl w-full p-5 shadow-xl space-y-3 text-sm max-h-[92vh] overflow-y-auto">
+    <div class="flex justify-between items-start">
+      <div><h3 id="d-title" class="font-bold text-gray-900 text-base"></h3><p id="d-sub" class="text-xs text-gray-500"></p></div>
+      <button onclick="closeModal('detail-modal')" class="text-gray-400 hover:text-gray-700"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div id="d-body"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const IS_ADMIN = APP.role === "admin";
+  const $ = (id) => document.getElementById(id);
+  let page = 1, current = null;
+
+  async function load() {
+    const p = new URLSearchParams({ page, per_page: 15, tz: tzOffset() });
+    for (const [k, id] of [["q", "f-q"], ["status", "f-status"], ["payment", "f-payment"], ["from", "f-from"], ["to", "f-to"]]) if ($(id).value) p.set(k, $(id).value.trim());
+    try {
+      const d = await api("/api/sales?" + p);
+      $("tbody").innerHTML = d.items.length ? d.items.map((s) => `
+        <tr class="hover:bg-gray-50 cursor-pointer" data-id="${s.id}">
+          <td class="py-3 pl-2 font-semibold text-slate-800">${esc(s.receipt_no)}${s.customer_name ? `<div class="text-[11px] font-normal text-gray-400">${esc(s.customer_name)}</div>` : ""}</td>
+          <td class="text-gray-600">${esc(fmtDate(s.created_at))}</td><td class="text-gray-600">${esc(s.cashier || "-")}</td><td class="text-gray-600">${s.units || "-"}</td>
+          <td class="uppercase text-xs text-gray-600">${esc(s.payment_method)}</td>
+          <td class="font-semibold">${money(s.total_cents)}${s.refunded_cents ? `<div class="text-[11px] text-red-500 font-normal">-${money(s.refunded_cents)}</div>` : ""}</td>
+          <td>${statusBadge(s.status)}</td></tr>`).join("") : '<tr><td colspan="7" class="text-center py-8 text-gray-400 text-xs">No sales found.</td></tr>';
+      $("tbody").querySelectorAll("tr[data-id]").forEach((tr) => tr.addEventListener("click", () => openDetail(Number(tr.dataset.id))));
+      renderPager($("pager"), d, (n) => { page = n; load(); });
+    } catch (e) { toast(e.message, "error"); }
+  }
+
+  async function openDetail(id) {
+    try { current = await api(`/api/sales/${id}`); renderDetail(); openModal("detail-modal"); } catch (e) { toast(e.message, "error"); }
+  }
+  function renderDetail() {
+    const s = current, canRefund = IS_ADMIN && s.items.length && s.status !== "refunded";
+    $("d-title").textContent = s.receipt_no; $("d-sub").textContent = `${fmtDate(s.created_at)}${s.cashier ? " - " + s.cashier : ""}${s.customer_phone ? " - " + s.customer_phone : ""}`;
+    const items = s.items.map((i) => `
+      <tr><td class="py-1.5">${esc(i.name)}</td><td class="text-right">${money(i.unit_price_cents)}</td><td class="text-right">${i.qty}</td>
+        <td class="text-right ${i.refunded_qty ? "text-red-600" : "text-gray-300"}">${i.refunded_qty}</td>
+        ${canRefund ? `<td class="text-right"><input type="number" min="0" max="${i.qty - i.refunded_qty}" value="0" data-item="${i.id}" ${i.qty - i.refunded_qty === 0 ? "disabled" : ""} class="w-14 border rounded px-1.5 py-0.5 text-right" /></td>` : ""}</tr>`).join("");
+    $("d-body").innerHTML = `
+      <div class="flex items-center gap-2">${statusBadge(s.status)}<span class="text-xs text-gray-500 uppercase">${esc(s.payment_method)}</span></div>
+      ${s.items.length ? `<table class="w-full text-xs mt-2"><thead class="text-gray-400 uppercase"><tr><th class="text-left">Item</th><th class="text-right">Price</th><th class="text-right">Qty</th><th class="text-right">Ret.</th>${canRefund ? '<th class="text-right">Refund qty</th>' : ""}</tr></thead><tbody class="divide-y">${items}</tbody></table>`
+        : '<p class="text-xs text-gray-400 mt-2">Imported from the legacy system - no line items recorded.</p>'}
+      <div class="text-xs space-y-1 mt-3 border-t pt-2">
+        <div class="flex justify-between"><span>Subtotal</span><span>${money(s.subtotal_cents)}</span></div>
+        ${s.discount_cents ? `<div class="flex justify-between"><span>Discount</span><span>-${money(s.discount_cents)}</span></div>` : ""}
+        ${s.tax_cents ? `<div class="flex justify-between"><span>Tax</span><span>${money(s.tax_cents)}</span></div>` : ""}
+        <div class="flex justify-between font-bold text-sm"><span>Total</span><span>${money(s.total_cents)}</span></div>
+        ${s.refunded_cents ? `<div class="flex justify-between text-red-600"><span>Refunded</span><span>-${money(s.refunded_cents)}</span></div>` : ""}
+      </div>
+      ${s.refunds.length ? `<div class="mt-3 text-xs"><p class="font-semibold text-gray-500 uppercase mb-1">Refund history</p>${s.refunds.map((r) => `
+        <p class="text-gray-600">${esc(fmtDate(r.created_at))} - <b>${money(r.amount_cents)}</b> (${r.items.map((i) => `${i.qty} x ${esc(i.name)}`).join(", ")})${r.reason ? " - " + esc(r.reason) : ""}${r.restocked ? "" : " - not restocked"}${r.refunded_by ? " by " + esc(r.refunded_by) : ""}</p>`).join("")}</div>` : ""}
+      ${canRefund ? `<div class="mt-3 border-t pt-3 flex flex-wrap items-center gap-2 text-xs">
+        <input id="r-reason" maxlength="200" placeholder="Refund reason" class="flex-1 min-w-[140px] border rounded-lg px-2 py-1.5" />
+        <label class="flex items-center gap-1"><input id="r-restock" type="checkbox" checked /> Return to stock</label>
+        <button onclick="submitRefund()" class="px-3 py-1.5 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700">Refund selected</button></div>` : ""}
+      <div class="mt-3 flex justify-end"><button onclick="showReceipt(current)" class="px-3 py-1.5 text-xs font-semibold border rounded-lg hover:bg-gray-50"><i class="fa-solid fa-print"></i> View / print receipt</button></div>`;
+  }
+  async function submitRefund() {
+    const items = [...document.querySelectorAll("#d-body input[data-item]")].map((i) => ({ sale_item_id: Number(i.dataset.item), qty: parseInt(i.value, 10) || 0 })).filter((i) => i.qty > 0);
+    if (!items.length) return toast("Enter a refund quantity for at least one item", "error");
+    if (!confirm("Process this refund? This cannot be undone.")) return;
+    try {
+      const r = await api(`/api/sales/${current.id}/refund`, { method: "POST", body: { items, reason: $("r-reason").value, restock: $("r-restock").checked } });
+      current = r.sale; toast(`Refunded ${money(r.amount_cents)}`); renderDetail(); load();
+    } catch (e) { toast(e.message, "error"); }
+  }
+
+  const reload = () => { page = 1; load(); };
+  $("f-q").addEventListener("input", debounce(reload));
+  ["f-status", "f-payment", "f-from", "f-to"].forEach((id) => $(id).addEventListener("change", reload));
+  document.addEventListener("DOMContentLoaded", load);
+</script>
+{% endblock %}

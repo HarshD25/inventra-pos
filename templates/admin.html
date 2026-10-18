@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Inventra POS - Admin{% endblock %}
+{% block heading %}Administration{% endblock %}
+
+{% block content %}
+<div class="flex gap-2 text-sm border-b" id="tabs">
+  <button data-tab="users" class="px-4 py-2 border-b-2 font-semibold">Users</button>
+  <button data-tab="settings" class="px-4 py-2 border-b-2 border-transparent text-gray-500">Store settings</button>
+  <button data-tab="audit" class="px-4 py-2 border-b-2 border-transparent text-gray-500">Audit log</button>
+</div>
+
+<section id="tab-users" class="space-y-4">
+  <form id="user-form" class="bg-white p-4 rounded-xl border shadow-sm flex flex-wrap items-end gap-2 text-xs">
+    <label class="flex flex-col gap-1">Username<input id="u-name" required minlength="3" maxlength="32" class="border rounded-lg px-2 py-2" /></label>
+    <label class="flex flex-col gap-1">Password<input id="u-pass" type="password" required minlength="8" autocomplete="new-password" class="border rounded-lg px-2 py-2" /></label>
+    <label class="flex flex-col gap-1">Role<select id="u-role" class="border rounded-lg px-2 py-2"><option value="cashier">Cashier</option><option value="admin">Admin</option></select></label>
+    <button class="px-3 py-2 bg-slate-900 text-white font-semibold rounded-lg hover:bg-slate-800"><i class="fa-solid fa-user-plus"></i> Add user</button>
+  </form>
+  <div class="bg-white p-4 rounded-xl border shadow-sm overflow-x-auto">
+    <table class="w-full text-sm text-left">
+      <thead class="text-xs text-gray-500 uppercase border-b"><tr><th class="pb-3">User</th><th class="pb-3">Role</th><th class="pb-3">Status</th><th class="pb-3">Created</th><th class="pb-3 text-right">Actions</th></tr></thead>
+      <tbody id="users-body" class="divide-y"></tbody>
+    </table>
+  </div>
+  <p class="text-xs text-gray-400">Cashiers can run the POS, view their own sales and browse products. Admins can also manage products, stock, refunds, users, reports and settings.</p>
+</section>
+
+<section id="tab-settings" class="hidden">
+  <form id="settings-form" class="bg-white p-5 rounded-xl border shadow-sm grid sm:grid-cols-2 gap-4 text-xs max-w-2xl">
+    <label class="flex flex-col gap-1">Store name<input id="s-store" maxlength="60" class="border rounded-lg px-3 py-2 text-sm" /></label>
+    <label class="flex flex-col gap-1">Currency symbol<input id="s-currency" maxlength="4" class="border rounded-lg px-3 py-2 text-sm" /></label>
+    <label class="flex flex-col gap-1">Tax rate (%)<input id="s-tax" type="number" min="0" max="100" step="0.01" class="border rounded-lg px-3 py-2 text-sm" /></label>
+    <label class="flex flex-col gap-1">Max cashier discount (%)<input id="s-disc" type="number" min="0" max="100" step="0.01" class="border rounded-lg px-3 py-2 text-sm" /></label>
+    <label class="flex flex-col gap-1 sm:col-span-2">Receipt footer<input id="s-footer" maxlength="120" class="border rounded-lg px-3 py-2 text-sm" /></label>
+    <div class="sm:col-span-2"><button class="px-4 py-2 bg-slate-900 text-white font-semibold rounded-lg hover:bg-slate-800">Save settings</button>
+      <span class="text-gray-400 ml-2">Applies to new sales immediately; past receipts keep their stored amounts.</span></div>
+  </form>
+</section>
+
+<section id="tab-audit" class="hidden">
+  <div class="bg-white p-4 rounded-xl border shadow-sm overflow-x-auto">
+    <table class="w-full text-xs text-left">
+      <thead class="text-gray-500 uppercase border-b"><tr><th class="pb-2">When</th><th class="pb-2">User</th><th class="pb-2">Action</th><th class="pb-2">Detail</th></tr></thead>
+      <tbody id="audit-body" class="divide-y"></tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const $ = (id) => document.getElementById(id);
+  const ME = APP.user;
+
+  function showTab(name) {
+    ["users", "settings", "audit"].forEach((t) => $("tab-" + t).classList.toggle("hidden", t !== name));
+    document.querySelectorAll("#tabs button").forEach((b) => {
+      const on = b.dataset.tab === name;
+      b.className = "px-4 py-2 border-b-2 " + (on ? "font-semibold border-slate-900" : "border-transparent text-gray-500");
+    });
+    if (name === "audit") loadAudit(); if (name === "settings") loadSettings();
+  }
+  document.querySelectorAll("#tabs button").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
+
+  async function loadUsers() {
+    try {
+      const d = await api("/api/users");
+      $("users-body").innerHTML = d.items.map((u) => `
+        <tr class="${u.is_active ? "" : "opacity-50"}">
+          <td class="py-3 font-medium">${esc(u.username)}${u.username === ME ? ' <span class="text-[10px] text-gray-400">(you)</span>' : ""}</td>
+          <td><select data-role="${u.id}" class="border rounded px-2 py-1 text-xs"><option value="cashier" ${u.role === "cashier" ? "selected" : ""}>Cashier</option><option value="admin" ${u.role === "admin" ? "selected" : ""}>Admin</option></select></td>
+          <td>${u.is_active ? '<span class="text-emerald-600 text-xs font-semibold">Active</span>' : '<span class="text-gray-500 text-xs font-semibold">Disabled</span>'}</td>
+          <td class="text-xs text-gray-500">${esc(fmtDate(u.created_at))}</td>
+          <td class="text-right text-xs whitespace-nowrap">
+            <button data-reset="${u.id}" data-name="${esc(u.username)}" class="px-2 py-1 border rounded hover:bg-gray-50">Reset password</button>
+            <button data-toggle="${u.id}" data-active="${u.is_active}" class="px-2 py-1 border rounded hover:bg-gray-50 ${u.is_active ? "text-red-600" : "text-emerald-600"}">${u.is_active ? "Disable" : "Enable"}</button></td></tr>`).join("");
+      document.querySelectorAll("[data-role]").forEach((s) => s.addEventListener("change", () => updateUser(s.dataset.role, { role: s.value })));
+      document.querySelectorAll("[data-toggle]").forEach((b) => b.addEventListener("click", () => updateUser(b.dataset.toggle, { is_active: b.dataset.active !== "true" })));
+      document.querySelectorAll("[data-reset]").forEach((b) => b.addEventListener("click", () => {
+        const pw = prompt(`New password for ${b.dataset.name} (min 8 characters):`);
+        if (pw) updateUser(b.dataset.reset, { password: pw });
+      }));
+    } catch (e) { toast(e.message, "error"); }
+  }
+  async function updateUser(id, body) {
+    try { await api(`/api/users/${id}`, { method: "PUT", body }); toast("User updated"); } catch (e) { toast(e.message, "error"); }
+    loadUsers();
+  }
+  $("user-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try {
+      await api("/api/users", { method: "POST", body: { username: $("u-name").value, password: $("u-pass").value, role: $("u-role").value } });
+      toast("User created"); e.target.reset(); loadUsers();
+    } catch (err) { toast(err.message, "error"); }
+  });
+
+  async function loadSettings() {
+    try {
+      const s = await api("/api/settings");
+      $("s-store").value = s.store_name; $("s-currency").value = s.currency_symbol; $("s-tax").value = s.tax_rate;
+      $("s-disc").value = s.max_cashier_discount_pct; $("s-footer").value = s.receipt_footer;
+    } catch (e) { toast(e.message, "error"); }
+  }
+  $("settings-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try {
+      await api("/api/settings", { method: "PUT", body: { store_name: $("s-store").value, currency_symbol: $("s-currency").value, tax_rate: $("s-tax").value,
+        max_cashier_discount_pct: $("s-disc").value, receipt_footer: $("s-footer").value } });
+      toast("Settings saved - reload other tabs to see them");
+    } catch (err) { toast(err.message, "error"); }
+  });
+
+  async function loadAudit() {
+    try {
+      const d = await api("/api/audit");
+      $("audit-body").innerHTML = d.items.map((a) => `<tr><td class="py-2 text-gray-500 whitespace-nowrap">${esc(fmtDate(a.created_at))}</td><td>${esc(a.username || "system")}</td><td class="font-mono">${esc(a.action)}</td><td class="text-gray-600">${esc(a.detail)}</td></tr>`).join("")
+        || '<tr><td colspan="4" class="py-4 text-gray-400">No activity yet</td></tr>';
+    } catch (e) { toast(e.message, "error"); }
+  }
+  document.addEventListener("DOMContentLoaded", loadUsers);
+</script>
+{% endblock %}

@@ -1,14 +1,22 @@
-# Python virtual environments & bytecode
+# Python
 __pycache__/
 *.pyc
 venv/
 .venv/
 env/
+.pytest_cache/
 
-# System & IDE files
+# Local data & secrets (never commit)
+instance/
+*.db
+*.db-wal
+*.db-shm
+.env
+
+# Editors / OS
 .DS_Store
 .vscode/
 .idea/
 
-# Environment files
 .env
+.env.example

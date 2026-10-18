@@ -1,247 +1,129 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Inventra POS - Dashboard</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-    />
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
-  </head>
-  <body
-    class="bg-gray-100 font-sans text-gray-800 flex flex-col md:flex-row min-h-screen"
-  >
-    <div
-      class="md:hidden bg-slate-900 text-white p-4 flex justify-between items-center"
-    >
-      <div class="flex items-center gap-3">
-        <i class="fa-solid fa-boxes-stacked text-xl"></i>
-        <span class="font-bold tracking-wide">Inventra POS</span>
-      </div>
-      <button
-        onclick="toggleMobileMenu()"
-        class="text-gray-300 hover:text-white focus:outline-none"
-      >
-        <i class="fa-solid fa-bars text-xl"></i>
-      </button>
-    </div>
-    <aside
-      id="sidebar"
-      class="hidden md:flex w-full md:w-56 bg-slate-900 text-slate-300 flex-col flex-shrink-0"
-    >
-      <div
-        class="p-4 hidden md:flex items-center gap-3 border-b border-slate-800"
-      >
-        <i class="fa-solid fa-boxes-stacked text-xl text-white"></i>
-        <span class="font-bold text-white tracking-wide">Inventra POS</span>
-      </div>
-      <nav class="flex-1 py-4 space-y-1">
-        <a
-          href="/dashboard.html"
-          class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium bg-slate-800 text-white"
-        >
-          <i class="fa-solid fa-house w-4"></i> Dashboard
-        </a>
-        <a
-          href="/products.html"
-          class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition hover:bg-slate-800"
-        >
-          <i class="fa-solid fa-box-open w-4"></i> Products
-        </a>
-        <a
-          href="/sales.html"
-          class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition hover:bg-slate-800"
-        >
-          <i class="fa-solid fa-calculator w-4"></i> POS Terminal
-        </a>
-      </nav>
-    </aside>
+{% extends "base.html" %}
+{% block title %}Inventra POS - Dashboard{% endblock %}
+{% block heading %}Dashboard{% endblock %}
+{% block head %}<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>{% endblock %}
 
-    <div class="flex-1 flex flex-col min-w-0">
-      <header
-        class="bg-white border-b px-6 py-3 flex justify-between items-center"
-      >
-        <h2 class="text-xl font-bold text-slate-800">Dashboard</h2>
-        <div class="flex items-center gap-4 text-sm text-gray-600">
-          <span>Welcome, <b class="text-slate-800">({{ user }})</b></span>
-          <button
-            onclick="logout()"
-            class="text-red-600 hover:text-red-800 text-xs font-semibold"
-          >
-            Logout
-          </button>
-        </div>
-      </header>
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-3">
+  <p class="text-sm text-gray-500">Performance overview (net of refunds)</p>
+  <select id="range" class="border rounded-lg px-3 py-1.5 text-sm bg-white">
+    <option value="7">Last 7 days</option><option value="14">Last 14 days</option>
+    <option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option>
+  </select>
+</div>
 
-      <main class="flex-1 p-6 space-y-6">
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div
-            class="bg-emerald-600 text-white rounded-xl p-4 sm:p-5 shadow-sm flex justify-between items-start"
-          >
-            <div>
-              <p class="text-emerald-100 text-xs sm:text-sm">Total Revenue:</p>
-              <h3 id="stat-revenue" class="text-xl sm:text-2xl font-bold mt-1">
-                $0.00
-              </h3>
-            </div>
-            <div class="p-2 bg-emerald-500/30 rounded-lg">
-              <i class="fa-solid fa-money-bill-wave text-base sm:text-lg"></i>
-            </div>
-          </div>
-          <div
-            class="bg-blue-600 text-white rounded-xl p-4 sm:p-5 shadow-sm flex justify-between items-start"
-          >
-            <div>
-              <p class="text-blue-100 text-xs sm:text-sm">Total Sales:</p>
-              <h3 id="stat-sales" class="text-xl sm:text-2xl font-bold mt-1">
-                0
-              </h3>
-            </div>
-            <div class="p-2 bg-blue-500/30 rounded-lg">
-              <i class="fa-solid fa-chart-line text-base sm:text-lg"></i>
-            </div>
-          </div>
-          <div
-            class="bg-amber-600 text-white rounded-xl p-4 sm:p-5 shadow-sm flex justify-between items-start"
-          >
-            <div>
-              <p class="text-amber-100 text-xs sm:text-sm">Low Stock Items:</p>
-              <h3
-                id="stat-low-stock"
-                class="text-xl sm:text-2xl font-bold mt-1"
-              >
-                0
-              </h3>
-            </div>
-            <div class="p-2 bg-amber-500/30 rounded-lg">
-              <i
-                class="fa-solid fa-triangle-exclamation text-base sm:text-lg"
-              ></i>
-            </div>
-          </div>
-        </div>
+<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex gap-3">
+    <div class="w-10 h-10 shrink-0 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center"><i class="fa-solid fa-sack-dollar"></i></div>
+    <div><p class="text-xs text-gray-500">Revenue</p><h3 id="k-revenue" class="text-2xl font-bold text-gray-900">-</h3>
+      <p class="text-[11px] text-gray-400 mt-0.5">Today: <span id="k-today-rev">-</span></p></div>
+  </div>
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex gap-3">
+    <div class="w-10 h-10 shrink-0 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center"><i class="fa-solid fa-bag-shopping"></i></div>
+    <div><p class="text-xs text-gray-500">Orders</p><h3 id="k-orders" class="text-2xl font-bold text-gray-900">-</h3>
+      <p class="text-[11px] text-gray-400 mt-0.5">Avg <span id="k-aov">-</span> - Today: <span id="k-today-orders">-</span></p></div>
+  </div>
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex gap-3">
+    <div class="w-10 h-10 shrink-0 rounded-lg bg-violet-100 text-violet-600 flex items-center justify-center"><i class="fa-solid fa-chart-pie"></i></div>
+    <div><p class="text-xs text-gray-500">Est. gross profit</p><h3 id="k-profit" class="text-2xl font-bold text-gray-900">-</h3>
+      <p class="text-[11px] text-gray-400 mt-0.5">Margin <span id="k-margin">-</span> (after discounts, excl. tax)</p></div>
+  </div>
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex gap-3">
+    <div class="w-10 h-10 shrink-0 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center"><i class="fa-solid fa-triangle-exclamation"></i></div>
+    <div><p class="text-xs text-gray-500">Low / out of stock</p><h3 id="k-low" class="text-2xl font-bold text-gray-900">-</h3>
+      <p class="text-[11px] text-gray-400 mt-0.5">Stock value <span id="k-inv-cost">-</span> (retail <span id="k-inv-retail">-</span>)</p></div>
+  </div>
+</div>
 
-        <!-- CSV Export Actions Card -->
-        <div
-          class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
-        >
-          <div>
-            <h4 class="text-sm font-bold text-gray-800">
-              Data Reports & Exports
-            </h4>
-            <p class="text-xs text-gray-500">
-              Download current transaction logs or stock status directly as CSV
-              files.
-            </p>
-          </div>
-          <div
-            class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto"
-          >
-            <a
-              href="/api/export/sales"
-              download
-              class="px-3 py-2 bg-slate-800 text-white text-xs font-semibold rounded-lg hover:bg-slate-700 transition flex items-center justify-center gap-2 w-full sm:w-auto"
-            >
-              <i class="fa-solid fa-file-csv"></i> Export Sales CSV
-            </a>
-            <a
-              href="/api/export/inventory"
-              download
-              class="px-3 py-2 border border-gray-300 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50 transition flex items-center justify-center gap-2 w-full sm:w-auto"
-            >
-              <i class="fa-solid fa-file-excel"></i> Export Inventory CSV
-            </a>
-          </div>
-        </div>
+<div class="bg-white p-4 sm:p-5 rounded-xl border border-gray-200 shadow-sm">
+  <h4 class="text-sm font-semibold text-gray-700 mb-4">Revenue &amp; orders</h4>
+  <div class="w-full h-64 sm:h-80 relative"><canvas id="chart"></canvas></div>
+</div>
 
-        <div
-          class="bg-white p-4 sm:p-5 rounded-xl border border-gray-200 shadow-sm"
-        >
-          <h4 class="text-sm font-semibold text-gray-700 mb-4">
-            Detailed Performance Trends
-          </h4>
-          <div class="w-full h-64 sm:h-80 relative">
-            <canvas id="performanceChart"></canvas>
-          </div>
-        </div>
-      </main>
-    </div>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+    <h4 class="text-sm font-semibold text-gray-700 mb-3">Top products</h4>
+    <div id="top-products" class="divide-y text-sm"></div>
+  </div>
+  <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+    <h4 class="text-sm font-semibold text-gray-700 mb-3">Payment mix</h4>
+    <div id="payments" class="space-y-3 text-sm"></div>
+  </div>
+  <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+    <div class="flex justify-between items-center mb-3"><h4 class="text-sm font-semibold text-gray-700">Needs restocking</h4>
+      <a href="/products.html" class="text-xs text-blue-600 hover:underline">Manage</a></div>
+    <div id="low-stock" class="divide-y text-sm"></div>
+  </div>
+  <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+    <div class="flex justify-between items-center mb-3"><h4 class="text-sm font-semibold text-gray-700">Recent sales</h4>
+      <a href="/history.html" class="text-xs text-blue-600 hover:underline">View all</a></div>
+    <div id="recent" class="divide-y text-sm"></div>
+  </div>
+</div>
 
-    <script>
-      let chartInstance = null;
-      function toggleMobileMenu() {
-        const sidebar = document.getElementById("sidebar");
-        sidebar.classList.toggle("hidden");
-      }
+<div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
+  <div><h4 class="text-sm font-bold text-gray-800">Reports &amp; exports (CSV)</h4>
+    <p class="text-xs text-gray-500">Optionally limit sales reports to a date range.</p></div>
+  <div class="flex flex-wrap items-end gap-3 text-xs">
+    <label class="flex flex-col gap-1">From<input id="ex-from" type="date" class="border rounded px-2 py-1.5" /></label>
+    <label class="flex flex-col gap-1">To<input id="ex-to" type="date" class="border rounded px-2 py-1.5" /></label>
+    <button onclick="exportCsv('sales')" class="px-3 py-2 bg-slate-800 text-white font-semibold rounded-lg hover:bg-slate-700"><i class="fa-solid fa-file-csv"></i> Sales</button>
+    <button onclick="exportCsv('inventory')" class="px-3 py-2 bg-slate-800 text-white font-semibold rounded-lg hover:bg-slate-700"><i class="fa-solid fa-file-excel"></i> Inventory</button>
+  </div>
+</div>
+{% endblock %}
 
-      async function loadDashboard() {
-        try {
-          const res = await fetch("/api/stats");
-          if (res.status === 401) return (window.location.href = "/login.html");
-          const data = await res.json();
+{% block scripts %}
+<script>
+  let chart = null;
+  const $ = (id) => document.getElementById(id);
+  const empty = (t) => `<p class="text-gray-400 text-xs py-3">${t}</p>`;
 
-          document.getElementById("stat-revenue").innerText =
-            `$${(data.revenue || 0).toFixed(2)}`;
-          document.getElementById("stat-sales").innerText = data.sales || 0;
-          document.getElementById("stat-low-stock").innerText =
-            data.low_stock || 0;
+  async function load() {
+    try {
+      const d = await api(`/api/stats?days=${$("range").value}&tz=${tzOffset()}`);
+      const r = d.range;
+      $("k-revenue").textContent = money(r.revenue_cents); $("k-today-rev").textContent = money(d.today.revenue_cents);
+      $("k-orders").textContent = r.orders; $("k-aov").textContent = money(r.avg_order_cents); $("k-today-orders").textContent = d.today.orders;
+      $("k-profit").textContent = money(r.profit_cents);
+      const net = r.revenue_cents - r.tax_cents; $("k-margin").textContent = net > 0 ? ((r.profit_cents / net) * 100).toFixed(1) + "%" : "-";
+      $("k-low").textContent = d.low_stock_count;
+      $("k-inv-cost").textContent = money(d.inventory.cost_value_cents); $("k-inv-retail").textContent = money(d.inventory.retail_value_cents);
 
-          const ctx = document
-            .getElementById("performanceChart")
-            .getContext("2d");
-          const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-          gradient.addColorStop(0, "rgba(37, 99, 235, 0.35)");
-          gradient.addColorStop(1, "rgba(37, 99, 235, 0.01)");
+      const labels = d.chart.labels.map((l) => new Date(l + "T00:00:00").toLocaleDateString([], { month: "short", day: "numeric" }));
+      if (chart) chart.destroy();
+      chart = new Chart($("chart"), {
+        data: { labels, datasets: [
+          { type: "line", label: "Revenue", data: d.chart.revenue_cents.map((c) => c / 100), borderColor: "#2563eb", backgroundColor: "rgba(37,99,235,.12)", fill: true, tension: 0.35, yAxisID: "y", pointRadius: d.days > 30 ? 0 : 3 },
+          { type: "bar", label: "Orders", data: d.chart.orders, backgroundColor: "rgba(16,185,129,.35)", yAxisID: "y1" } ] },
+        options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+          scales: { y: { beginAtZero: true, grid: { color: "#f3f4f6" }, ticks: { callback: (v) => (APP.currency || "$") + v.toLocaleString() } },
+                    y1: { beginAtZero: true, position: "right", grid: { display: false }, ticks: { precision: 0 } }, x: { grid: { display: false } } },
+          plugins: { tooltip: { callbacks: { label: (c) => c.dataset.yAxisID === "y" ? ` Revenue ${money(Math.round(c.parsed.y * 100))}` : ` Orders ${c.parsed.y}` } } } },
+      });
 
-          if (chartInstance) chartInstance.destroy();
-
-          const labels = (data.chart && data.chart.labels) || ["No Data"];
-          const chartData = (data.chart && data.chart.data) || [0];
-
-          chartInstance = new Chart(ctx, {
-            type: "line",
-            data: {
-              labels: labels,
-              datasets: [
-                {
-                  label: "Sales Revenue ($)",
-                  data: chartData,
-                  borderColor: "#2563eb",
-                  borderWidth: 3,
-                  backgroundColor: gradient,
-                  fill: true,
-                  tension: 0.35,
-                  pointRadius: 6,
-                  pointHoverRadius: 8,
-                  pointBackgroundColor: "#2563eb",
-                  pointBorderColor: "#ffffff",
-                  pointBorderWidth: 2,
-                },
-              ],
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              scales: {
-                y: { beginAtZero: true, grid: { color: "#f3f4f6" } },
-                x: { grid: { display: false } },
-              },
-            },
-          });
-        } catch (err) {
-          console.error("Dashboard failed to load:", err);
-        }
-      }
-
-      async function logout() {
-        await fetch("/api/logout", { method: "POST" });
-        window.location.href = "/login.html";
-      }
-
-      window.onload = loadDashboard;
-    </script>
-  </body>
-</html>
+      $("top-products").innerHTML = d.top_products.length ? d.top_products.map((p, i) => `
+        <div class="flex justify-between py-2"><span><span class="text-gray-400 mr-2">${i + 1}.</span>${esc(p.name)}</span>
+        <span class="text-gray-500">${p.units} sold - <b class="text-gray-800">${money(p.revenue_cents)}</b></span></div>`).join("") : empty("No sales in this period");
+      const totalRev = d.payments.reduce((s, p) => s + p.revenue_cents, 0) || 1;
+      $("payments").innerHTML = d.payments.length ? d.payments.map((p) => `
+        <div><div class="flex justify-between text-xs mb-1"><span class="uppercase font-semibold text-gray-600">${esc(p.method)} (${p.n})</span><span>${money(p.revenue_cents)}</span></div>
+        <div class="h-2 bg-gray-100 rounded"><div class="h-2 bg-blue-500 rounded" style="width:${Math.max((p.revenue_cents / totalRev) * 100, 2)}%"></div></div></div>`).join("") : empty("No sales in this period");
+      $("low-stock").innerHTML = d.low_stock.length ? d.low_stock.map((p) => `
+        <div class="flex justify-between py-2"><span>${esc(p.name)} <span class="text-[10px] text-gray-400">${esc(p.sku)}</span></span>
+        <span class="${p.stock === 0 ? "text-red-600" : "text-amber-600"} font-semibold">${p.stock} left <span class="text-gray-400 font-normal">(reorder at ${p.reorder_level})</span></span></div>`).join("") : empty("Everything is well stocked");
+      $("recent").innerHTML = d.recent_sales.length ? d.recent_sales.map((s) => `
+        <div class="flex justify-between items-center py-2"><span><b>${esc(s.receipt_no)}</b> <span class="text-[11px] text-gray-400">${esc(fmtDate(s.created_at))}${s.cashier ? " - " + esc(s.cashier) : ""}</span></span>
+        <span class="flex items-center gap-2">${statusBadge(s.status)}<b>${money(s.total_cents)}</b></span></div>`).join("") : empty("No sales yet");
+    } catch (e) { toast(e.message, "error"); }
+  }
+  function exportCsv(report) {
+    const p = new URLSearchParams({ tz: tzOffset() });
+    if ($("ex-from").value) p.set("from", $("ex-from").value);
+    if ($("ex-to").value) p.set("to", $("ex-to").value);
+    window.location.href = `/api/export/${report}?${p}`;
+  }
+  $("range").addEventListener("change", load);
+  document.addEventListener("DOMContentLoaded", load);
+</script>
+{% endblock %}

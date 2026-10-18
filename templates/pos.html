@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+{% block title %}Inventra POS - Terminal{% endblock %}
+{% block heading %}POS Terminal{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+  <!-- Catalogue -->
+  <div class="lg:col-span-2 bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b pb-3">
+      <h3 class="font-bold text-gray-800 text-sm">Select items</h3>
+      <div class="relative w-full sm:w-80">
+        <i class="fa-solid fa-barcode absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+        <input id="pos-search" type="text" autocomplete="off" placeholder="Search name or scan SKU + Enter  (F2)"
+          class="w-full pl-8 pr-3 py-1.5 border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+    </div>
+    <div id="category-chips" class="flex flex-wrap gap-1.5"></div>
+    <div id="pos-grid" class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3"></div>
+  </div>
+
+  <!-- Cart -->
+  <div class="space-y-4">
+    <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+      <div class="flex justify-between items-center border-b pb-2 mb-3">
+        <h3 class="font-bold text-gray-800 text-sm">Current order</h3>
+        <div class="flex gap-3 text-xs">
+          <button onclick="clearCart()" class="text-red-500 hover:underline">Clear</button>
+        </div>
+      </div>
+      <div id="cart-items" class="divide-y divide-gray-100 text-xs min-h-[120px] max-h-[40vh] overflow-y-auto"></div>
+
+      <div class="border-t pt-3 mt-3 space-y-2 text-xs">
+        <div class="flex items-center gap-2">
+          <span class="text-gray-500 w-16">Discount</span>
+          <select id="disc-type" class="border rounded px-1.5 py-1"><option value="percent">%</option><option value="amount">Amount</option></select>
+          <input id="disc-val" type="number" min="0" step="0.01" placeholder="0" class="w-20 border rounded px-2 py-1" />
+          <span id="disc-hint" class="text-[10px] text-red-500"></span>
+        </div>
+        <div class="flex justify-between text-gray-600"><span>Subtotal</span><span id="t-subtotal"></span></div>
+        <div class="flex justify-between text-gray-600"><span>Discount</span><span id="t-discount"></span></div>
+        <div class="flex justify-between text-gray-600"><span>Tax (<span id="t-rate"></span>%)</span><span id="t-tax"></span></div>
+        <div class="flex justify-between items-center font-bold text-slate-800 border-t pt-2">
+          <span>Total</span><span id="cart-total" class="text-lg text-blue-600"></span>
+        </div>
+      </div>
+
+      <div class="mt-3 space-y-2 text-xs">
+        <div class="grid grid-cols-3 gap-1.5" id="pay-methods"></div>
+        <div id="cash-box" class="flex items-center gap-2">
+          <input id="tendered" type="number" min="0" step="0.01" placeholder="Cash received" class="flex-1 border rounded px-2 py-1.5" />
+          <button type="button" onclick="document.getElementById('tendered').value = (calc().total/100).toFixed(2); renderTotals();" class="px-2 py-1.5 border rounded hover:bg-gray-50">Exact</button>
+        </div>
+        <p id="change-line" class="text-gray-500 min-h-[1rem]"></p>
+        <details class="text-gray-600">
+          <summary class="cursor-pointer select-none">Customer (optional)</summary>
+          <div class="grid grid-cols-2 gap-2 mt-2">
+            <input id="cust-name" maxlength="80" placeholder="Name" class="border rounded px-2 py-1.5" />
+            <input id="cust-phone" maxlength="20" placeholder="Phone" class="border rounded px-2 py-1.5" />
+          </div>
+        </details>
+      </div>
+
+      <button id="checkout-btn" onclick="submitCheckout()" class="w-full mt-4 bg-emerald-600 text-white font-medium py-2.5 rounded-lg text-sm hover:bg-emerald-700 transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50">
+        <i class="fa-regular fa-square-check"></i> Complete sale <span class="text-[10px] opacity-70">(F9)</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let products = [], categories = [], cart = [], activeCategory = "", payMethod = "cash", idemKey = null, busy = false;
+  const $ = (id) => document.getElementById(id);
+
+  async function loadProducts() {
+    try {
+      const data = await api("/api/products?per_page=500");
+      products = data.items; categories = data.categories;
+      renderChips(); renderGrid(); syncCartWithStock();
+    } catch (e) { toast(e.message, "error"); }
+  }
+  function renderChips() {
+    const chip = (label, val) => `<button data-cat="${esc(val)}" class="px-2.5 py-1 rounded-full text-xs border ${activeCategory === val ? "bg-slate-900 text-white border-slate-900" : "bg-white text-gray-600 hover:bg-gray-50"}">${esc(label)}</button>`;
+    $("category-chips").innerHTML = chip("All", "") + categories.map((c) => chip(c, c)).join("");
+    $("category-chips").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => { activeCategory = b.dataset.cat; renderChips(); renderGrid(); }));
+  }
+  function filtered() {
+    const q = $("pos-search").value.toLowerCase().trim();
+    return products.filter((p) => (!activeCategory || p.category === activeCategory) && (!q || p.name.toLowerCase().includes(q) || (p.sku || "").toLowerCase().includes(q)));
+  }
+  function renderGrid() {
+    const list = filtered();
+    $("pos-grid").innerHTML = list.length ? list.map((p) => {
+      const inCart = (cart.find((c) => c.id === p.id) || {}).qty || 0;
+      const out = p.stock - inCart <= 0;
+      return `<button data-id="${p.id}" ${out ? "disabled" : ""} class="p-3 border rounded-xl flex flex-col items-center gap-1.5 bg-white transition ${out ? "opacity-40 cursor-not-allowed bg-gray-50" : "hover:border-blue-500 hover:shadow-sm"}">
+        <div class="w-11 h-11 rounded-xl flex items-center justify-center text-lg ${categoryStyle(p.category)}"><i class="${productIcon(p)}"></i></div>
+        <span class="text-xs font-medium text-gray-800 line-clamp-2 text-center">${esc(p.name)}</span>
+        <span class="text-[10px] text-gray-400">${esc(p.sku)}</span>
+        <span class="text-xs font-bold text-blue-600">${money(p.price_cents)}</span>
+        <span class="text-[10px] ${p.stock <= p.reorder_level ? "text-amber-600 font-semibold" : "text-gray-400"}">Stock: ${p.stock}</span>
+      </button>`;
+    }).join("") : '<p class="col-span-full text-center text-xs text-gray-400 py-8">No matching products</p>';
+    $("pos-grid").querySelectorAll("button[data-id]").forEach((b) => b.addEventListener("click", () => addToCart(Number(b.dataset.id))));
+  }
+
+  /*-- cart --*/
+  const touch = () => { idemKey = null; };
+    const p = products.find((x) => x.id === id);
+    if (!p) return;
+    const line = cart.find((c) => c.id === id);
+    if ((line ? line.qty : 0) + 1 > p.stock) return toast(`Only ${p.stock} of ${p.name} in stock`, "error");
+    if (line) line.qty++; else cart.push({ id: p.id, name: p.name, price_cents: p.price_cents, qty: 1 });
+    touch(); renderCart();
+  }
+  function setQty(id, qty) {
+    const p = products.find((x) => x.id === id), line = cart.find((c) => c.id === id);
+    if (!line) return;
+    if (p && qty > p.stock) { toast(`Only ${p.stock} of ${p.name} in stock`, "error"); qty = p.stock; }
+    if (qty <= 0) cart = cart.filter((c) => c.id !== id); else line.qty = qty;
+    touch(); renderCart();
+  }
+  function syncCartWithStock() {
+    cart.forEach((l) => { const p = products.find((x) => x.id === l.id); if (!p) l.qty = 0; else if (l.qty > p.stock) l.qty = p.stock; });
+    cart = cart.filter((l) => l.qty > 0); renderCart();
+  }
+  function renderCart() {
+    $("cart-items").innerHTML = cart.length ? cart.map((i) => `
+      <div class="flex justify-between items-center py-2 gap-2">
+        <div class="min-w-0"><p class="font-medium text-gray-800 truncate">${esc(i.name)}</p><p class="text-[10px] text-gray-400">${money(i.price_cents)} each</p></div>
+        <div class="flex items-center gap-2 shrink-0">
+          <div class="flex items-center gap-1 border rounded px-1 py-0.5 bg-gray-50">
+            <button data-d="-1" data-id="${i.id}" class="text-gray-500 hover:text-red-600 px-1 font-bold" aria-label="Decrease">-</button>
+            <input data-q="${i.id}" type="number" min="1" value="${i.qty}" class="w-9 text-center bg-transparent text-xs" />
+            <button data-d="1" data-id="${i.id}" class="text-gray-500 hover:text-blue-600 px-1 font-bold" aria-label="Increase">+</button>
+          </div>
+          <span class="font-semibold text-gray-700 w-16 text-right">${money(i.price_cents * i.qty)}</span>
+          <button data-rm="${i.id}" class="text-gray-300 hover:text-red-500" aria-label="Remove"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+      </div>`).join("") : '<p class="text-gray-400 text-center py-8">Cart is empty</p>';
+    const root = $("cart-items");
+    root.querySelectorAll("button[data-d]").forEach((b) => b.addEventListener("click", () => { const l = cart.find((c) => c.id === Number(b.dataset.id)); setQty(l.id, l.qty + Number(b.dataset.d)); }));
+    root.querySelectorAll("input[data-q]").forEach((inp) => inp.addEventListener("change", () => setQty(Number(inp.dataset.q), parseInt(inp.value, 10) || 0)));
+    root.querySelectorAll("button[data-rm]").forEach((b) => b.addEventListener("click", () => setQty(Number(b.dataset.rm), 0)));
+    renderTotals(); renderGrid();
+  }
+  function clearCart(reset = true) {
+    cart = []; if (reset) { $("disc-val").value = ""; $("tendered").value = ""; $("cust-name").value = ""; $("cust-phone").value = ""; }
+    touch(); renderCart();
+  }
+
+  function calc() {
+    const subtotal = cart.reduce((s, i) => s + i.price_cents * i.qty, 0);
+    const val = parseFloat($("disc-val").value) || 0;
+    let discount = 0;
+    if (val > 0) discount = $("disc-type").value === "percent" ? Math.round((subtotal * Math.min(val, 100)) / 100) : Math.min(toCents(val), subtotal);
+    const tax = Math.round(((subtotal - discount) * (parseFloat(APP.taxRate) || 0)) / 100);
+    return { subtotal, discount, tax, total: subtotal - discount + tax };
+  }
+  function renderTotals() {
+    const t = calc();
+    $("t-subtotal").textContent = money(t.subtotal); $("t-discount").textContent = "-" + money(t.discount);
+    $("t-tax").textContent = money(t.tax); $("t-rate").textContent = APP.taxRate; $("cart-total").textContent = money(t.total);
+    const pct = t.subtotal ? (t.discount * 100) / t.subtotal : 0, limit = parseFloat(APP.maxCashierDiscount);
+    $("disc-hint").textContent = APP.role !== "admin" && pct > limit ? `Max ${limit}% for cashiers` : "";
+    const tendered = parseFloat($("tendered").value);
+    $("change-line").textContent = payMethod === "cash" && tendered >= 0 && !isNaN(tendered)
+      ? (toCents(tendered) >= t.total ? `Change due: ${money(toCents(tendered) - t.total)}` : `Short by ${money(t.total - toCents(tendered))}`) : "";
+  }
+  function renderPay() {
+    const defs = [["cash", "fa-money-bill-wave", "Cash"], ["card", "fa-credit-card", "Card"], ["upi", "fa-mobile-screen-button", "UPI"]];
+    $("pay-methods").innerHTML = defs.map(([m, icon, label]) => `<button data-m="${m}" class="py-1.5 rounded-lg border text-xs font-medium ${payMethod === m ? "bg-slate-900 text-white border-slate-900" : "bg-white hover:bg-gray-50"}"><i class="fa-solid ${icon}"></i> ${label}</button>`).join("");
+    $("pay-methods").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => { payMethod = b.dataset.m; touch(); renderPay(); }));
+    $("cash-box").classList.toggle("hidden", payMethod !== "cash"); renderTotals();
+  }
+
+  async function submitCheckout() {
+    if (busy) return;
+    if (!cart.length) return toast("Cart is empty", "error");
+    const t = calc();
+    if (payMethod === "cash" && $("tendered").value && toCents($("tendered").value) < t.total) return toast("Cash received is less than the total", "error");
+    idemKey = idemKey || (crypto.randomUUID ? crypto.randomUUID() : Date.now() + "-" + Math.random().toString(16).slice(2));
+    const discVal = parseFloat($("disc-val").value) || 0;
+    const payload = {
+      cart: cart.map((i) => ({ id: i.id, qty: i.qty })),
+      discount: discVal > 0 ? { type: $("disc-type").value, value: discVal } : null,
+      payment: { method: payMethod, tendered: payMethod === "cash" && $("tendered").value ? $("tendered").value : null },
+      customer: { name: $("cust-name").value, phone: $("cust-phone").value },
+      idempotency_key: idemKey,
+    };
+    busy = true; $("checkout-btn").disabled = true;
+    try {
+      const res = await api("/api/checkout", { method: "POST", body: payload });
+      showReceipt(res.sale); toast(`Sale ${res.sale.receipt_no} completed`);
+      clearCart(); await loadProducts();
+    } catch (e) {
+      toast(e.message, "error");
+      if (e.status === 409) loadProducts();
+    } finally { busy = false; $("checkout-btn").disabled = false; }
+  }
+
+  $("pos-search").addEventListener("input", renderGrid);
+  $("pos-search").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    const q = e.target.value.trim().toLowerCase();
+    if (!q) return;
+    const exact = products.find((p) => (p.sku || "").toLowerCase() === q), list = filtered();
+    const hit = exact || (list.length === 1 ? list[0] : null);
+    if (hit) { addToCart(hit.id); e.target.value = ""; renderGrid(); } else toast("No single matching product", "error");
+  });
+  ["disc-type", "disc-val", "tendered"].forEach((id) => $(id).addEventListener("input", () => { touch(); renderTotals(); }));
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "F2") { e.preventDefault(); $("pos-search").focus(); }
+    if (e.key === "F9") { e.preventDefault(); submitCheckout(); }
+  });
+  document.addEventListener("DOMContentLoaded", () => { renderPay(); loadProducts(); $("pos-search").focus(); });
+</script>
+{% endblock %}
